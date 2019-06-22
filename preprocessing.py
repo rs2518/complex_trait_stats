@@ -6,32 +6,31 @@ Created on Mon Jun 10 20:11:21 2019
 @author: raphaelsinclair
 """
 
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import os
-
-
 
 # ============= LOAD DATA FILES =============== #
 
-# Set to home directory
+# Set directories and load raw data
+import numpy as np
+import pandas as pd
+import os
+
+#hpc_path = '/rdsgpfs/general/project/medbio-berlanga-group/live/projects/ml_trait_prediction/Data'
+#os.chdir(hpc_path)
+#directory = 'Raw'
+
 os.chdir(os.path.expanduser('~'))
-
-##### Results files
-# Load subset of results files
-directory = "Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/50-0.0"
-
+directory = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/50-0.0'
+directory2 = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/manual_downloads/variant_info'
 
 max_files = 2
+
+
+# Loading results files
 counter = 0
-
-
 imp_results = None
 for file in sorted(os.listdir(directory)):
-    if file.startswith("imputed.allWhites.") and file.endswith(".csv.gz") and file.find('.chr') != -1:
-        df = pd.read_csv("~/" + os.path.join(directory, file), sep = " ",
+    if file.startswith('imputed.allWhites.') and file.endswith('.csv.gz') and file.find('.chr') != -1:
+        df = pd.read_csv('~/' + os.path.join(directory, file), sep = ' ',
                          compression = 'gzip')
         
         # Add column for chr no.
@@ -43,24 +42,13 @@ for file in sorted(os.listdir(directory)):
         if counter >= max_files or counter >= len(os.listdir(directory)):
             break
 
-######
-## Subset data
-#imp_results = imp_results.sample(n = 8000, random_state = 1)
-######
 
-
-##### Variant info files
-# Load subset of variant info files
-directory2 = "Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/manual_downloads/variant_info"
-
-max_files = 2
+# Loading variant info files
 counter = 0
-
-
 imp_stats = None
 for file in sorted(os.listdir(directory2)):
-    if file.startswith("snps.imputed.") and file.endswith(".csv") and file.find('.chr') != -1:
-        df = pd.read_csv("~/" + os.path.join(directory2, file), sep = " ")
+    if file.startswith('snps.imputed.') and file.endswith('.csv') and file.find('.chr') != -1:
+        df = pd.read_csv('~/' + os.path.join(directory2, file), sep = ' ')
 
         # Add column for chr no.
         chromosome_no = int(file[file.find('.chr')+4:file.find('.csv')])
@@ -71,14 +59,9 @@ for file in sorted(os.listdir(directory2)):
         if counter >= max_files:
             break
 
-######
-## Subset data
-#imp_stats = imp_stats.sample(n = 12000, random_state = 1)
-######
 
 
-
-# ============= MERGE DATASETS ===============#
+# ============= MERGE DATASETS =============== #
 
 # Rename columns and merge data
 imp_results.columns = ['SNP', 'Allele', 'iscores', 'Beta', 'SE',
@@ -86,11 +69,6 @@ imp_results.columns = ['SNP', 'Allele', 'iscores', 'Beta', 'SE',
 
 merged_data = pd.merge(imp_results, imp_stats, right_on = ['SNP', 'Chr_no'],
                      left_on = ['SNP', 'Chr_no'], how = 'outer')
-
-
-# View distribution of labels (i.e. 'p_value')
-sns.distplot(merged_data['p_value'].dropna())
-plt.show()     # Relatively even distribution with a spike around p_value = 0
 
 
 # Find row indices for iscores that agree or disagree. Check for any overlap
@@ -107,11 +85,11 @@ merged_data.drop(['iscore'], axis = 1, inplace = True)
 
 
 
-# ============= RECODE VARIABLES ===============#
+# ============= RECODE VARIABLES =============== #
 
 # Convert chromosome number to ordinal
 merged_data['Chr_no'] = pd.Categorical(merged_data['Chr_no'],
-               categories = list(range(1,23)), ordered = True)
+               categories = list(range(1,23)), ordered = False)
 
 
 # Convert allele variable to nominal
@@ -130,64 +108,67 @@ for col in al_vars:
 
 # Define continuous and categorical variables
 continuous_vars = ['iscores', 'Beta', 'SE', 'MAF', 'HWE-P']
-nominal_vars = [col + '_v2' for col in al_vars]
-ordinal_vars = ['Chr_no']
+scaled_vars = [col + '_scaled' for col in continuous_vars]
+
+categorical_vars = [col + '_v2' for col in al_vars] + ['Chr_no']
 
 # NATURE OF 'POSITION' TO BE DECIDED LATER!
 
 
 
-# ============= SCALING AND ENCODING ===============#
-
+# ============= SCALING AND ENCODING =============== #
 
 # Scale categorical variables and binarise categorical variables
-from sklearn_pandas import DataFrameMapper
-from sklearn.preprocessing import StandardScaler, LabelBinarizer, OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 
+scaler = StandardScaler()
+scaled_data = pd.DataFrame(scaler.fit_transform(merged_data[continuous_vars]),
+                           columns = scaled_vars)
 
-mapper = DataFrameMapper(
-  [(continuous_vars, StandardScaler())])
-scaled_df = pd.DataFrame(mapper.fit_transform(merged_data), 
-                    columns = continuous_vars)
-
-categorical_vars = nominal_vars + ordinal_vars
-binary_df = pd.get_dummies(merged_data[categorical_vars],
+dummy_data = pd.get_dummies(merged_data[categorical_vars],
                            columns = categorical_vars,
                            prefix = [col + '_' for col in categorical_vars])
 
-# Concatenate scaled and binary dataframes
-processed_data = pd.concat([scaled_df, binary_df], axis = 1)
-processed_data.index = merged_data['SNP']
+processed_data = pd.concat([merged_data, scaled_data, dummy_data], axis = 1)
 
 
-# ============= SAVE DATA ===============#
+
+# ============= SAVE DATA =============== #
+
+## Check if directory exists. If not, create a new directory
+#if not os.path.exists('Processed'):
+#    os.mkdir('Processed')
+#    print('Created \'./Processed/\' directory')
+#    processed_data.to_csv(os.path.join('./Processed', 
+#                                       'processed_data.csv'))
+#    merged_data.to_csv(os.path.join('./Processed', 
+#                                       'integrated_data.csv'))
+#else:    
+#    print('\'./Processed/\' directory already exists')
+#    processed_data.to_csv(os.path.join('./Processed', 
+#                                       'processed_data.csv'))
+#    merged_data.to_csv(os.path.join('./Processed', 
+#                                       'integrated_data.csv'))
 
 
-#import sys
-#
-#script_name = sys.argv[0]
-#
-#script_name = "GA_preprocessing_v2.py"
-#for root, dirs, files in os.walk(os.getcwd()):
-#    for file in files:
-#        if file.endswith(script_name):
-#            filename = file
-#            path = root
-#            break
-#if not filename.endswith(script_name):
-#    print('Could not find specified file')
-#else:
-#    os.chdir(path)
-#    print('Directory changed to :', path)
-#    
-#    if not os.path.exists('./Results'):
-#        os.mkdir('./Results')
-#        print("Created './Results/' directory")
-#    else:    
-#        print("'./Results/' directory already exists" )
-#        preprocessed_data.to_csv(os.path.join('./Results', 
-#                                           'processed_data.csv'))
-#        merged_data.to_csv(os.path.join('./Results', 
-#                                           'integrated_data.csv'))
-#        
-#
+
+# Locally save sample
+os.chdir('Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/')
+sample_processed = processed_data.sample(n = 500, random_state = 1)
+sample_merged = merged_data.sample(n = 500, random_state = 1)
+
+if not os.path.exists('Processed'):
+    os.mkdir('Processed')
+    print('Created \'./Processed/\' directory')
+    sample_processed.to_csv(os.path.join('./Processed', 
+                                       'processed_data_sample.csv'))
+    sample_merged.to_csv(os.path.join('./Processed', 
+                                       'integrated_data_sample.csv'))
+else:    
+    print('\'./Processed/\' directory already exists')
+    sample_processed.to_csv(os.path.join('./Processed', 
+                                       'processed_data_sample.csv'))
+    sample_merged.to_csv(os.path.join('./Processed', 
+                                       'integrated_data_sample.csv'))
+
+
