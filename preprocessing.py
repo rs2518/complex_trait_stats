@@ -66,6 +66,8 @@ for file in sorted(os.listdir(directory2)):
 # Rename columns and merge data
 imp_results.columns = ['SNP', 'Allele', 'iscores', 'Beta', 'SE',
                        'p_value', 'Chr_no']
+imp_stats.columns = ['SNP', 'Position', 'A1', 'A2', 'MAF', 'HWE_P',
+                     'iscore', 'Chr_no']
 
 merged_data = pd.merge(imp_results, imp_stats, right_on = ['SNP', 'Chr_no'],
                      left_on = ['SNP', 'Chr_no'], how = 'outer')
@@ -107,7 +109,7 @@ for col in al_vars:
 
 
 # Define continuous and categorical variables
-continuous_vars = ['iscores', 'Beta', 'SE', 'MAF', 'HWE-P']
+continuous_vars = ['iscores', 'Beta', 'SE', 'MAF', 'HWE_P']
 scaled_vars = [col + '_scaled' for col in continuous_vars]
 
 categorical_vars = [col + '_v2' for col in al_vars] + ['Chr_no']
@@ -130,6 +132,18 @@ dummy_data = pd.get_dummies(merged_data[categorical_vars],
                            prefix = [col + '_' for col in categorical_vars])
 
 processed_data = pd.concat([merged_data, scaled_data, dummy_data], axis = 1)
+
+
+# Reorder columns and log transform p_values
+processed_cols = processed_data.columns.to_list()
+processed_cols = processed_cols[0:5] + processed_cols[6:] + [processed_cols[5]]
+merged_cols = merged_data.columns.to_list()
+merged_cols = merged_cols[0:5] + merged_cols[6:] + [merged_cols[5]]
+
+processed_data = processed_data[processed_cols]
+processed_data['log_p_val'] = np.log(processed_data['p_value'])
+merged_data = merged_data[merged_cols]
+merged_data['log_p_val'] = np.log(merged_data['p_value'])
 
 
 
