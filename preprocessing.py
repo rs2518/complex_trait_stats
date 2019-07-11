@@ -29,7 +29,8 @@ max_files = 2
 counter = 0
 imp_results = None
 for file in sorted(os.listdir(directory)):
-    if file.startswith('imputed.allWhites.') and file.endswith('.csv.gz') and file.find('.chr') != -1:
+    if file.startswith('imputed.allWhites.') and file.endswith(
+            '.csv.gz') and file.find('.chr') != -1:
         df = pd.read_csv('~/' + os.path.join(directory, file), sep = ' ',
                          compression = 'gzip')
         
@@ -47,7 +48,8 @@ for file in sorted(os.listdir(directory)):
 counter = 0
 imp_stats = None
 for file in sorted(os.listdir(directory2)):
-    if file.startswith('snps.imputed.') and file.endswith('.csv') and file.find('.chr') != -1:
+    if file.startswith('snps.imputed.') and file.endswith(
+            '.csv') and file.find('.chr') != -1:
         df = pd.read_csv('~/' + os.path.join(directory2, file), sep = ' ')
 
         # Add column for chr no.
@@ -74,16 +76,18 @@ merged_data = pd.merge(imp_results, imp_stats, right_on = ['SNP', 'Chr_no'],
 
 
 # Find row indices for iscores that agree or disagree. Check for any overlap
-iscores_agree = (merged_data['iscores'].isna() & merged_data['iscore'].isna()) | (merged_data['iscores'] == merged_data['iscore'])
+iscores_agree = (merged_data['iscores'].isna() & merged_data[
+        'iscore'].isna()) | (merged_data['iscores'] == merged_data['iscore'])
 # Agree if both entries are missing or contain same value
 
 
 # Recode false missing data in 'iscore' and drop redundant column
-indices_iscore = list(merged_data[(iscores_agree == False) & (merged_data['iscores'].isnull())].index)
+indices_iscore = list(merged_data[
+        (iscores_agree == False) & (merged_data['iscores'].isnull())].index)
 for index in indices_iscore:
     merged_data.loc[index, 'iscores'] = merged_data.loc[index, 'iscore']
 
-merged_data.drop(['iscore'], axis = 1, inplace = True)
+merged_data.drop(['iscore', 'Allele'], axis = 1, inplace = True)
 
 
 
@@ -95,7 +99,7 @@ merged_data['Chr_no'] = pd.Categorical(merged_data['Chr_no'],
 
 
 # Convert allele variable to nominal
-al_vars = ['Allele', 'A1', 'A2']
+al_vars = ['A1', 'A2']
 
 alleles = ['A', 'C', 'G', 'T']
 new_category = 'Other'
@@ -112,7 +116,8 @@ num_exceptions = ['Position']
 continuous_vars = [col for col in merged_data.select_dtypes(
         exclude=['object', 'category']).columns
     if col not in num_exceptions]
-categorical_vars = merged_data.select_dtypes(include=['category']).columns.to_list()
+categorical_vars = merged_data.select_dtypes(
+        include=['category']).columns.to_list()
 
 
 # 'POSITION' TO BE CONSIDERED AS A NUMERICAL ID!
@@ -125,8 +130,9 @@ categorical_vars = merged_data.select_dtypes(include=['category']).columns.to_li
 from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
-scaled_data = pd.DataFrame(scaler.fit_transform(merged_data[continuous_vars]),
-                           columns = [col + '_scaled' for col in continuous_vars])
+scaled_data = pd.DataFrame(
+        scaler.fit_transform(merged_data[continuous_vars]),
+        columns = [col + '_scaled' for col in continuous_vars])
 
 dummy_data = pd.get_dummies(merged_data[categorical_vars],
                            columns = categorical_vars,
