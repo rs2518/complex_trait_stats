@@ -35,7 +35,7 @@ for file in sorted(os.listdir(directory)):
         
         # Add column for chr no.
         chromosome_no = int(file[file.find('.chr')+4:file.find('.csv.gz')])
-        df['Chr_no'] = chromosome_no * np.ones(len(df))
+        df['Chr_no'] = chromosome_no * np.ones(len(df), dtype = np.int8)
         imp_results = pd.concat([imp_results, df], axis = 0)
         
         counter = counter + 1
@@ -52,7 +52,7 @@ for file in sorted(os.listdir(directory2)):
 
         # Add column for chr no.
         chromosome_no = int(file[file.find('.chr')+4:file.find('.csv')])
-        df['Chr_no'] = chromosome_no * np.ones(len(df))
+        df['Chr_no'] = chromosome_no * np.ones(len(df), dtype = np.int8)
         imp_stats = pd.concat([imp_stats, df], axis = 0)
         
         counter = counter + 1
@@ -89,7 +89,7 @@ merged_data.drop(['iscore'], axis = 1, inplace = True)
 
 # ============= RECODE VARIABLES =============== #
 
-# Convert chromosome number to ordinal
+# Convert chromosome number to nominal
 merged_data['Chr_no'] = pd.Categorical(merged_data['Chr_no'],
                categories = list(range(1,23)), ordered = False)
 
@@ -101,20 +101,21 @@ alleles = ['A', 'C', 'G', 'T']
 new_category = 'Other'
 al_categories = alleles + [new_category]
 for col in al_vars:
-    merged_data[col + '_v2'] = pd.Categorical(merged_data[col], 
-           categories = al_categories, ordered = False)
     merged_data[col + '_v2'] = np.where(
             merged_data[col].isin(alleles + [np.NaN]),
             merged_data[col], new_category)
+    merged_data[col + '_v2'] = merged_data[col + '_v2'].astype('category')
 
 
 # Define continuous and categorical variables
-continuous_vars = ['iscores', 'Beta', 'SE', 'MAF', 'HWE_P']
-scaled_vars = [col + '_scaled' for col in continuous_vars]
+num_exceptions = ['Position']
+continuous_vars = [col for col in merged_data.select_dtypes(
+        exclude=['object', 'category']).columns
+    if col not in num_exceptions]
+categorical_vars = merged_data.select_dtypes(include=['category']).columns.to_list()
 
-categorical_vars = [col + '_v2' for col in al_vars] + ['Chr_no']
 
-# NATURE OF 'POSITION' TO BE DECIDED LATER!
+# 'POSITION' TO BE CONSIDERED AS A NUMERICAL ID!
 
 
 
@@ -125,7 +126,7 @@ from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
 scaled_data = pd.DataFrame(scaler.fit_transform(merged_data[continuous_vars]),
-                           columns = scaled_vars)
+                           columns = [col + '_scaled' for col in continuous_vars])
 
 dummy_data = pd.get_dummies(merged_data[categorical_vars],
                            columns = categorical_vars,
@@ -141,9 +142,9 @@ merged_cols = merged_data.columns.to_list()
 merged_cols = merged_cols[0:5] + merged_cols[6:] + [merged_cols[5]]
 
 processed_data = processed_data[processed_cols]
-processed_data['log_p_val'] = np.log(processed_data['p_value'])
+processed_data['log_p_val'] = np.log10(processed_data['p_value'])
 merged_data = merged_data[merged_cols]
-merged_data['log_p_val'] = np.log(merged_data['p_value'])
+merged_data['log_p_val'] = -np.log10(merged_data['p_value'])
 
 
 
@@ -171,18 +172,17 @@ os.chdir('Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis
 sample_processed = processed_data.sample(n = 500, random_state = 1)
 sample_merged = merged_data.sample(n = 500, random_state = 1)
 
+
 if not os.path.exists('Processed'):
     os.mkdir('Processed')
     print('Created \'./Processed/\' directory')
-    sample_processed.to_csv(os.path.join('./Processed', 
-                                       'processed_data_sample.csv'))
-    sample_merged.to_csv(os.path.join('./Processed', 
-                                       'integrated_data_sample.csv'))
+    sample_processed.to_pickle(os.path.join('./Processed', 
+                                       'processed_data_sample.pkl'))
+    sample_merged.to_pickle(os.path.join('./Processed', 
+                                       'integrated_data_sample.pkl'))
 else:    
     print('\'./Processed/\' directory already exists')
-    sample_processed.to_csv(os.path.join('./Processed', 
-                                       'processed_data_sample.csv'))
-    sample_merged.to_csv(os.path.join('./Processed', 
-                                       'integrated_data_sample.csv'))
-
-
+    sample_processed.to_pickle(os.path.join('./Processed', 
+                                       'processed_data_sample.pkl'))
+    sample_merged.to_pickle(os.path.join('./Processed', 
+                                       'integrated_data_sample.pkl'))
