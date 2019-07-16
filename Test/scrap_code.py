@@ -56,33 +56,160 @@ processed_data = processed_data[
         processed_data.columns[-(len(add_cols) - 1):].to_list() + processed_data.columns[:-(len(add_cols) - 1)].to_list()]
 
 
+#continuous_vars = ['iscores', 'Beta', 'SE', 'MAF', 'HWE_P']
+#categorical_vars = [col + '_v2' for col in al_vars] + ['Chr_no']
+
+#merged_data[col + '_v2'] = pd.Categorical(merged_data[col], 
+#        categories = al_categories, ordered = False)
 
 
-# PLOT DISTRIBUTION OF P_VALUES
-# View distribution of labels (i.e. 'p_value')
-sns.distplot(merged_data['p_value'].dropna())
+
+
+## SAVE DATA AS CSV
+if not os.path.exists('Processed'):
+    os.mkdir('Processed')
+    print('Created \'./Processed/\' directory')
+    sample_processed.to_csv(os.path.join('./Processed', 
+                                       'processed_data_sample.csv'))
+    sample_merged.to_csv(os.path.join('./Processed', 
+                                       'integrated_data_sample.csv'))
+else:    
+    print('\'./Processed/\' directory already exists')
+    sample_processed.to_csv(os.path.join('./Processed', 
+                                       'processed_data_sample.csv'))
+    sample_merged.to_csv(os.path.join('./Processed', 
+                                       'integrated_data_sample.csv'))
+
+
+
+
+## LOAD CSV DATA
+data = pd.read_csv(
+        os.path.join(home, directory) + 'processed_data_sample.csv',
+        index_col = 0)
+int_df = pd.read_csv(
+        os.path.join(home, directory) + 'integrated_data_sample.csv',
+        index_col = 0)
+
+
+
+
+
+
+
+## CORRELATION PLOT
+C_mat = train_data.corr()
+fig = plt.figure(figsize = (15,15))
+sns.heatmap(C_mat, vmax = .8, square = True)
+# Could set vmax to be median correlation score
+# i.e. Take list of unique correlation scores and calculate median
+# (or other suitable percentile depending on distribution)
 plt.show()
 
-# View distribution of target (view impact of transformation)
-sns.distplot(y)
+
+
+
+## COMPLEX SUBPLOTS ON SAME GRAPH
+# SEE https://jakevdp.github.io/PythonDataScienceHandbook/04.08-multiple-subplots.html
+
+# Set up the axes with gridspec
+fig = plt.figure(figsize=(6, 6))
+grid = plt.GridSpec(4, 4, hspace=0.2, wspace=0.2)
+main_ax = fig.add_subplot(grid[:-1, 1:])
+y_hist = fig.add_subplot(grid[:-1, 0], xticklabels=[], sharey=main_ax)
+x_hist = fig.add_subplot(grid[-1, 1:], yticklabels=[], sharex=main_ax)
+
+# scatter points on the main axes
+main_ax.plot(x, y, 'ok', markersize=3, alpha=0.2)
+
+# histogram on the attached axes
+x_hist.hist(x, 40, histtype='stepfilled',
+            orientation='vertical', color='gray')
+x_hist.invert_yaxis()
+
+y_hist.hist(y, 40, histtype='stepfilled',
+            orientation='horizontal', color='gray')
+y_hist.invert_xaxis()
+
+
+
+## VISUALISE DISTRIBUTIONS OF ALL NUMERIC VARIABLES USING SUBPLOTS
+# (UNUSED SUBPLOTS REMOVED)
+ncols = 3
+if len(numeric_vars) % ncols == 0:
+    nrows = len(numeric_vars)//ncols
+else: 
+    nrows = len(numeric_vars)//ncols + 1
+    
+gs = gridspec.GridSpec(nrows = nrows, ncols = ncols)
+fig = plt.figure()
+for index, column in enumerate(numeric_vars):
+    axes = fig.add_subplot(gs[index // ncols, index % ncols])
+    sns.distplot(int_df[column].dropna(),
+                 ax = axes)    
+    axes.set_xlabel(column)
+    axes.set_ylabel('Density : {}'.format(column))
+plt.show()
+##### NOTE: NOT PARTICULARLY HELPFUL TO VIEW THIS WAY. VIEW AND
+##### ANALYSE VARIABLES INDIVIDUALLY
+
+
+
+
+## STRATIFIED SCATTERPLOT
+# Create scatter plots
+g = sns.FacetGrid(tips, col="sex", row="smoker", margin_titles=True)
+g.map(sns.plt.scatter, "total_bill", "tip")
+
+# Add a title to the figure
+g.fig.suptitle("this is a title")
+
+# Show the plot
 plt.show()
 
-sns.distplot(-np.log(y))
+
+
+
+## FUNNEL PLOT
+sns.set_style('ticks')
+ax = sns.scatterplot(int_df['Beta'], int_df['SE'])
+ax.set(xlim = (-max(np.abs(int_df['Beta'])), max(np.abs(int_df['Beta']))))
+#ax.set(xlim = (-max(np.abs(int_df['Beta'])), max(np.abs(int_df['Beta']))),
+#       ylim = (0, max(int_df['SE']) + 1))     # Set y-axis as well
+ax.axvline(np.mean(int_df['Beta']), linestyle = '--', c = 'grey')
+ax.set_title('Funnel Plot', fontsize = 12, fontweight = 'bold')
+#plt.ylim(reversed(plt.ylim()))
+ax.invert_yaxis()
+ax.text(np.mean(int_df['Beta']), 7,
+         r'$\mu={:.{}f}$'.format(np.mean(int_df['Beta']), 4),
+         fontsize = 10)
 plt.show()
 
 
-formula = y_train.name + '~' + processed_cols[0]
-for index in range(1, len(processed_cols)):
-    if data[processed_cols[index]].dtype != np.float:
-        formula = formula + '+c(' + str(processed_cols[index] + ')')
-    else:
-        formula = formula + '+' + str(processed_cols[index])
+
+
+## 2-WAY CROSS TABLE
+rows = int_df['A1_v2'].cat.categories
+cols = int_df['A2_v2'].cat.categories
+al_matrix = pd.crosstab(int_df['A1_v2'], int_df['A2_v2'], margins = False).values
+
+mask = np.zeros_like(corr, dtype=np.bool)
+mask[np.triu_indices_from(mask, k = 0)] = True
+
+#cmap = sns.diverging_palette(240, 10, as_cmap=True)
+fig10 = sns.heatmap(al_matrix, mask = mask, center = 0, cmap = cmap)
+
+
+plt.show()
 
 
 
 
 
-print([i for i in processed_cols if data[i].dtype != np.float]
+
+
+
+
 
 
 
