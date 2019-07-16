@@ -7,13 +7,19 @@ Created on Mon Jun 10 20:11:21 2019
 """
 
 
-# ============= LOAD DATA FILES =============== #
+# ============= LOAD LIBRARIES =============== #
 
-# Set directories and load raw data
 import numpy as np
 import pandas as pd
 import os
 
+from sklearn.preprocessing import StandardScaler
+
+
+
+# ============= LOAD DATA FILES =============== #
+
+# Set directories and load raw data
 #hpc_path = '/rdsgpfs/general/project/medbio-berlanga-group/live/projects/ml_trait_prediction/Data'
 #os.chdir(hpc_path)
 #directory = 'Raw'
@@ -25,7 +31,8 @@ directory2 = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Anal
 max_files = 2
 
 
-# Loading results files
+# Load and append results and variant info files.
+# Add column for chromosome number
 counter = 0
 imp_results = None
 for file in sorted(os.listdir(directory)):
@@ -34,7 +41,6 @@ for file in sorted(os.listdir(directory)):
         df = pd.read_csv('~/' + os.path.join(directory, file), sep = ' ',
                          compression = 'gzip')
         
-        # Add column for chr no.
         chromosome_no = int(file[file.find('.chr')+4:file.find('.csv.gz')])
         df['Chr_no'] = chromosome_no * np.ones(len(df), dtype = np.int8)
         imp_results = pd.concat([imp_results, df], axis = 0)
@@ -43,16 +49,13 @@ for file in sorted(os.listdir(directory)):
         if counter >= max_files or counter >= len(os.listdir(directory)):
             break
 
-
-# Loading variant info files
 counter = 0
 imp_stats = None
 for file in sorted(os.listdir(directory2)):
     if file.startswith('snps.imputed.') and file.endswith(
             '.csv') and file.find('.chr') != -1:
         df = pd.read_csv('~/' + os.path.join(directory2, file), sep = ' ')
-
-        # Add column for chr no.
+        
         chromosome_no = int(file[file.find('.chr')+4:file.find('.csv')])
         df['Chr_no'] = chromosome_no * np.ones(len(df), dtype = np.int8)
         imp_stats = pd.concat([imp_stats, df], axis = 0)
@@ -65,23 +68,22 @@ for file in sorted(os.listdir(directory2)):
 
 # ============= MERGE DATASETS =============== #
 
-# Rename columns and merge data
+# Rename columns
 imp_results.columns = ['SNP', 'Allele', 'iscores', 'Beta', 'SE',
                        'p_value', 'Chr_no']
 imp_stats.columns = ['SNP', 'Position', 'A1', 'A2', 'MAF', 'HWE_P',
                      'iscore', 'Chr_no']
 
+
+# Merge dataframes
 merged_data = pd.merge(imp_results, imp_stats, right_on = ['SNP', 'Chr_no'],
                      left_on = ['SNP', 'Chr_no'], how = 'outer')
 
 
-# Find row indices for iscores that agree or disagree. Check for any overlap
+# Recode false missing data in 'iscore' and drop redundant column
 iscores_agree = (merged_data['iscores'].isna() & merged_data[
         'iscore'].isna()) | (merged_data['iscores'] == merged_data['iscore'])
-# Agree if both entries are missing or contain same value
 
-
-# Recode false missing data in 'iscore' and drop redundant column
 indices_iscore = list(merged_data[
         (iscores_agree == False) & (merged_data['iscores'].isnull())].index)
 for index in indices_iscore:
@@ -100,7 +102,6 @@ merged_data['Chr_no'] = pd.Categorical(merged_data['Chr_no'],
 
 # Convert allele variable to nominal
 al_vars = ['A1', 'A2']
-
 alleles = ['A', 'C', 'G', 'T']
 new_category = 'Other'
 al_categories = alleles + [new_category]
@@ -112,7 +113,7 @@ for col in al_vars:
 
 
 # Define continuous and categorical variables
-num_exceptions = ['Position']
+num_exceptions = ['Position', 'p_value']
 continuous_vars = [col for col in merged_data.select_dtypes(
         exclude=['object', 'category']).columns
     if col not in num_exceptions]
@@ -120,15 +121,13 @@ categorical_vars = merged_data.select_dtypes(
         include=['category']).columns.to_list()
 
 
-# 'POSITION' TO BE CONSIDERED AS A NUMERICAL ID!
+# NOTE: 'POSITION' TO BE CONSIDERED AS A NUMERICAL ID!
 
 
 
 # ============= SCALING AND ENCODING =============== #
 
 # Scale categorical variables and binarise categorical variables
-from sklearn.preprocessing import StandardScaler
-
 scaler = StandardScaler()
 scaled_data = pd.DataFrame(
         scaler.fit_transform(merged_data[continuous_vars]),
@@ -143,9 +142,14 @@ processed_data = pd.concat([merged_data, scaled_data, dummy_data], axis = 1)
 
 # Reorder columns and log transform p_values
 processed_cols = processed_data.columns.to_list()
-processed_cols = processed_cols[0:5] + processed_cols[6:] + [processed_cols[5]]
+ind = processed_cols.index('p_value')
+processed_cols = processed_cols[0:ind] + processed_cols[ind+1:] + [
+        processed_cols[ind]]
+
 merged_cols = merged_data.columns.to_list()
-merged_cols = merged_cols[0:5] + merged_cols[6:] + [merged_cols[5]]
+ind = merged_cols.index('p_value')
+merged_cols = merged_cols[0:ind] + merged_cols[ind+1:] + [
+        merged_cols[ind]]
 
 processed_data = processed_data[processed_cols]
 processed_data['log_p_val'] = np.log10(processed_data['p_value'])
@@ -177,7 +181,6 @@ merged_data['log_p_val'] = -np.log10(merged_data['p_value'])
 os.chdir('Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/')
 sample_processed = processed_data.sample(n = 500, random_state = 1)
 sample_merged = merged_data.sample(n = 500, random_state = 1)
-
 
 if not os.path.exists('Processed'):
     os.mkdir('Processed')
