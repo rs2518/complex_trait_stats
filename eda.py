@@ -132,7 +132,6 @@ plt.show()
 
 
 
-
 ##### P_VALUE DISTRIBUTION PLOTS
 
 gs3 = gridspec.GridSpec(1, 2)
@@ -161,6 +160,7 @@ ax7.set(xlim = (0, 1))
 plt.show()
 # NOTE: p_values should be uniformly distributed. Log_transformation typically
 # shows a peak towards zero in GWAS
+
 
 
 ##### DISTRIBUTION PLOTS (POSITION, MAF)
@@ -223,7 +223,7 @@ all(int_df['Allele_v2'] == int_df['A2_v2'])
 
 
 
-##### STRATIFIED SCATTERPLOT
+##### STRATIFIED DISTPLOTS
 
 # P_value distribution by minor/major allele
 gs5 = sns.FacetGrid(int_df, col = 'A1_v2', row = 'A2_v2', height = 2,
@@ -268,6 +268,28 @@ fig9 = sns.heatmap(corr, mask = mask, center = 0,
 
 
 plt.show()
+
+
+
+
+
+
+##### 2-WAY CROSS TABLE
+
+# Create 2-way heatmap for A1 vs. A2 categories
+rows = int_df['A1_v2'].cat.categories
+cols = int_df['A2_v2'].cat.categories
+al_matrix = pd.crosstab(int_df['A1_v2'], int_df['A2_v2'], margins = False).values
+mask = np.zeros_like(corr, dtype=np.bool)
+mask[np.triu_indices_from(mask, k = 0)] = True
+
+#cmap = sns.diverging_palette(240, 10, as_cmap=True)
+#fig10 = sns.heatmap(al_matrix, mask = mask, center = 0, cmap = cmap)
+#
+#
+#plt.show()
+
+
 
 
 
