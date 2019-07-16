@@ -204,12 +204,54 @@ plt.show()
 
 
 
-
-
-
-
-
-
-
+## SUBPLOT FOR CROSS-VALIDATION
+## Training scores plots
+#
+#figtest, axes = plt.subplots(1,2, sharey = True)
+#
+#sns.set_style('darkgrid')
+#
+#for split in range(folds):
+#    train_scores = -results['split%s_train_score' % (split)]
+#    axes[0].semilogx(l1_space,
+#                 train_scores,
+#                 linestyle = '--',
+#                 label = 'Fold {0}'.format(split + 1))
+#
+#axes[0].set_xlim([l1_space[0], l1_space[-1]])
+#axes[0].set_ylabel('Mean Squared Error')
+#axes[0].set_xlabel('alpha (L1 penalty)')
+#axes[0].set_title('Training scores by fold', fontweight = 'bold')
+#axes[0].legend()
+# 
+#  
+##plt.show()
+#
+#
+## Plot mean train scores with confidence intervals
+#mean_train_scores = -results['mean_train_score']
+#std_train_scores = results['std_train_score']
+#
+#axes[1].semilogx(l1_space, mean_train_scores)
+#axes[1].semilogx(l1_space, mean_train_scores + std_train_scores,
+#             linestyle = '--', color = 'navy')
+#axes[1].semilogx(l1_space, mean_train_scores - std_train_scores,
+#             linestyle = '--', color = 'navy')
+#
+#axes[1].set_ylabel('Mean Squared Error')
+#axes[1].set_xlabel('alpha (L1 penalty)')
+#axes[1].axhline(np.max(mean_train_scores), linestyle = ':', color='.5')
+#axes[1].text(l1_space[1],
+#          np.max(mean_train_scores) - 0.5 * np.max(std_train_scores),
+#          'Highest training score = {:.3g}'.format(np.max(mean_train_scores)),
+#          color = 'g')
+#axes[1].set_xlim([l1_space[0], l1_space[-1]])
+#
+#axes[1].fill_between(l1_space, mean_train_scores + std_train_scores,
+#                 mean_train_scores - std_train_scores, alpha=0.2)
+#axes[1].set_title('Mean training scores +/- standard error', fontweight = 'bold')
+#
+#
+#plt.show()
 
 
