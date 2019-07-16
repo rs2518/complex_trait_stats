@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import os
 
 from sklearn.model_selection import train_test_split
@@ -87,7 +86,7 @@ processed_cols = [col for col in
                   data.columns.to_list() if col not in 
                   int_df.columns.to_list()]
 X = data[processed_cols]
-X.insert(loc = 0, column = 'intercept', value = np.ones(len(X)))
+#X.insert(loc = 0, column = 'intercept', value = np.ones(len(X)))
 y = data['p_value']
 seed = 21
 
@@ -116,15 +115,12 @@ lasso_cv = GridSearchCV(lasso,
                         return_train_score = True)
 lasso_cv.fit(X_train, y_train)
 
-print('Best LASSO (l1) penalty :\n', lasso_cv.best_params_)
-print('Best model coefficients :\n', lasso_cv.best_estimator_.coef_)
-
-results = lasso_cv.cv_results_
-
-
 ##### TRAINING
 
 # Plot training scores for each split of cross-validation
+results = lasso_cv.cv_results_
+
+
 fig1 = plt.figure()
 
 sns.set_style('darkgrid')
@@ -184,7 +180,7 @@ plt.show()
 
 ##### VALIDATION
 
-# Plot training scores for each split of cross-validation
+# Plot validation-set ('test') scores for each split of cross-validation
 fig3 = plt.figure()
 
 sns.set_style('darkgrid')
@@ -206,7 +202,7 @@ plt.legend()
 plt.show()
 
 
-# Plot mean train scores with confidence intervals
+# Plot mean validation scores with confidence intervals
 fig4 = plt.figure()
 
 sns.set_style('darkgrid')
@@ -225,7 +221,7 @@ plt.xlabel('alpha (L1 penalty)')
 plt.axhline(np.min(mean_val_scores), linestyle = ':', color = '0.5')
 plt.text(l1_space[1],
           np.min(mean_val_scores) - 0.5 * np.max(std_val_scores),
-          'Highest validation score = {:.3g}'.format(np.min(mean_val_scores)),
+          'Best validation score = {:.3g}'.format(np.min(mean_val_scores)),
           color = 'g')
 plt.xlim([l1_space[0], l1_space[-1]])
 
@@ -241,23 +237,63 @@ plt.show()
 
 # ============= MODEL DIAGNOSTICS =============== #
 
-# Plot model coefficients
-plt.plot(range(len(X.columns)), lasso_cv.best_estimator_.coef_)
-plt.xticks(range(len(X.columns)), X.columns.values, rotation=90)
+# Display tuned model coefficients and best hyperparameter(s)
+print('Best LASSO (l1) penalty :\n', lasso_cv.best_params_)
+
+print(24 * '*')
+
+coefs = np.append(lasso_cv.best_estimator_.intercept_,
+                  lasso_cv.best_estimator_.coef_)
+index = ['intercept'] + X.columns.to_list()
+
+coef_table = pd.DataFrame(data = {'Coefficients' : coefs},
+                          index = index)
+
+print('Tuned model coefficients :\n', coef_table)
+
+
+### NOTE: THIS NEEDS TO BE RE_ADJUSTED TO HAVE A BASELINE REFERENCE GROUP
+# (AND TO EXCLUDE CORRELATED VARIABLES ACCORDING TO EDA)
+
+
+# Plot model coefficients with barplot
+fig5 = plt.figure()
+
+sns.barplot(x = coefs, y = index)
+
+plt.xlabel('Coefficient')
+plt.ylabel('Model parameters')
+plt.axvline(0, color = 'black', linewidth = 0.5)
+plt.title('Model coefficients', fontweight = 'bold')
+
+
+plt.show()
+
 
 # Predict on test set using model and calculate residuals
 y_pred = lasso_cv.predict(X_test)
 residuals = y_test - y_pred
 
+
 # Create metrics table
-lr_metrics = metrics_table(y_test, y_pred)
+lasso_metrics = metrics_table(y_test, y_pred)
+print(lasso_metrics)
 
 
-# Residuals vs index
-plt.scatter(x = range(len(X_test)), y = residuals, c = 'g')
+# Plot residuals against predicted values
+fig6 = plt.figure()
+
+sns.scatterplot(x = y_pred, y = residuals)
+
+plt.xlabel('Fitted values')
+plt.ylabel('Residuals')
+plt.xlim((0,1))
+plt.axhline(0, color = 'black', linewidth = 0.5)
+
+
 plt.show()
 
-# Residuals vs fitted values
-plt.scatter(x = y_pred, y = residuals, c = 'g')
-plt.show()
+### NOTE: Not a good predictive model. Shows large errors particularly where
+# fitted values are close to 0.5
+
 
