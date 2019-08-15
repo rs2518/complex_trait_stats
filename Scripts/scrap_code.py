@@ -255,3 +255,93 @@ plt.show()
 #plt.show()
 
 
+
+
+## ATTEMPT TO READ MATCHED LINES
+# NOTE: TAKES WAY TOO LONG
+#test2 = [line.find(' ') for line in open(os.path.join(directory2,
+#         'snps.imputed.chr1.csv'))]
+#
+#snps = []
+#non_matches = []
+#for ind, line in enumerate(open(os.path.join(directory2,'snps.imputed.chr1.csv'))):
+#    end_num = test2[ind]
+#    snps.append(line[0:end_num])
+#snps = snps[1:]
+#
+#matched_snps = [snp for snp in snps if snp in list(imp_results['SNP'])]
+
+
+
+
+##### LOADS RANDOM SAMPLE OF SNPS
+## ATTEMPT TO LOAD DATA FROM ALL SNPS
+#
+## Set directories and load raw data
+#os.chdir(os.path.expanduser('~'))
+#directory = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/50-0.0'
+#directory2 = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/manual_downloads/variant_info'
+#
+#max_files = 3
+#sample = 1000
+#
+## Load and append results and variant info files.
+## Add column for chromosome number
+#counter = 0
+#data = None
+#chromosomes = []
+#
+#for file in sorted(os.listdir(directory)):
+#    if file.startswith('imputed.allWhites.') and file.endswith(
+#            '.csv.gz') and file.find('.chr') != -1:
+#        
+#        filepath = os.path.join(directory, file)
+#        nrows = sum(1 for line in gzip.open(filepath))
+#        np.random.seed(0)     # Set seed
+#        skip_rows = np.random.choice(np.arange(1, nrows),
+#                                     size = nrows - sample - 1,
+#                                     replace = False)
+#        
+#        chr_no = file[file.find('.chr')+4:file.find('.csv.gz')]
+#        if chr_no.isdigit() == True:
+#            chr_no = int(chr_no)
+#            chromosomes.append(chr_no)
+#            
+#            imp_results = pd.read_csv('~/' + filepath,
+#                             sep = ' ',
+#                             compression = 'gzip',
+#                             skiprows = skip_rows)
+#            imp_results['Chr_no'] = chr_no * np.ones(
+#                    len(imp_results), dtype = np.int8)
+#
+#
+#        for file2 in sorted(os.listdir(directory2)):
+#            if file2.startswith('snps.imputed.') and file2.endswith(
+#                    '.csv') and file2.find('.chr') != -1:
+#                
+#                chr_no2 = file2[file2.find('.chr')+4:file2.find('.csv')]
+#                if chr_no2.isdigit() and int(chr_no2) in chromosomes:
+#                    chr_no2 = int(chr_no2)
+#                    
+#                    imp_stats = pd.read_csv('~/' + os.path.join(directory2, file2),
+#                                     sep = ' ')
+#                    imp_stats['Chr_no'] = chr_no2 * np.ones(
+#                            len(imp_stats), dtype = np.int8)
+#                    
+#                    df = pd.merge(imp_results, imp_stats,
+#                                  right_on = ['SNP', 'Chr_no'],
+#                                  left_on = ['SNP', 'Chr_no'],
+#                                  how = 'inner')
+#        
+#                    break
+#        data = pd.concat([data, df], axis = 0)
+#
+#
+#        counter = counter + 1
+#        if counter >= max_files or counter >= len(os.listdir(directory)):
+#            break
+
+
+############################################
+
+
