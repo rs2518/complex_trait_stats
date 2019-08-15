@@ -113,15 +113,16 @@ for col in al_vars:
 
 
 # Define continuous and categorical variables
-num_exceptions = ['Position', 'p_value']
+exceptions = ['Chr_no', 'Position', 'p_value']
 continuous_vars = [col for col in merged_data.select_dtypes(
         exclude=['object', 'category']).columns
-    if col not in num_exceptions]
-categorical_vars = merged_data.select_dtypes(
-        include=['category']).columns.to_list()
+    if col not in exceptions]
+categorical_vars = [col for col in merged_data.select_dtypes(
+        include=['category']).columns
+    if col not in exceptions]
 
 
-# NOTE: 'POSITION' TO BE CONSIDERED AS A NUMERICAL ID!
+# NOTE: 'POSITION' ALONG WITH 'CHR_NO' TO BE CONSIDERED AS AN ID!
 
 
 
@@ -137,7 +138,7 @@ dummy_data = pd.get_dummies(merged_data[categorical_vars],
                            columns = categorical_vars,
                            prefix = [col + '_' for col in categorical_vars])
 
-processed_data = pd.concat([merged_data, scaled_data, dummy_data], axis = 1)
+processed_data = pd.concat([merged_data[['SNP'] + exceptions], scaled_data, dummy_data], axis = 1)
 
 
 # Reorder columns and log transform p_values
@@ -152,7 +153,7 @@ merged_cols = merged_cols[0:ind] + merged_cols[ind+1:] + [
         merged_cols[ind]]
 
 processed_data = processed_data[processed_cols]
-processed_data['log_p_val'] = np.log10(processed_data['p_value'])
+processed_data['log_p_val'] = -np.log10(processed_data['p_value'])
 merged_data = merged_data[merged_cols]
 merged_data['log_p_val'] = -np.log10(merged_data['p_value'])
 
@@ -163,24 +164,26 @@ merged_data['log_p_val'] = -np.log10(merged_data['p_value'])
 ## Check if directory exists. If not, create a new directory
 #if not os.path.exists('Processed'):
 #    os.mkdir('Processed')
-#    print('Created \'./Processed/\' directory')
-#    processed_data.to_csv(os.path.join('./Processed', 
-#                                       'processed_data.csv'))
-#    merged_data.to_csv(os.path.join('./Processed', 
-#                                       'integrated_data.csv'))
+#    print('Created './Processed/' directory')
+#    processed_data.to_pickle(os.path.join('./Processed', 
+#                                       'processed_data.pkl'))
+#    merged_data.to_pickle(os.path.join('./Processed', 
+#                                       'integrated_data.pkl'))
 #else:    
-#    print('\'./Processed/\' directory already exists')
-#    processed_data.to_csv(os.path.join('./Processed', 
-#                                       'processed_data.csv'))
-#    merged_data.to_csv(os.path.join('./Processed', 
-#                                       'integrated_data.csv'))
+#    print(''./Processed/' directory already exists')
+#    processed_data.to_pickle(os.path.join('./Processed', 
+#                                       'processed_data.pkl'))
+#    merged_data.to_pickle(os.path.join('./Processed', 
+#                                       'integrated_data.pkl'))
 
 
 
 # Locally save sample
 os.chdir('Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/Data/')
-sample_processed = processed_data.sample(n = 500, random_state = 1)
-sample_merged = merged_data.sample(n = 500, random_state = 1)
+seed = 1
+sample_processed = processed_data.sample(n = 500, random_state = seed)
+sample_merged = merged_data.sample(n = 500, random_state = seed)
+
 
 if not os.path.exists('Processed'):
     os.mkdir('Processed')
