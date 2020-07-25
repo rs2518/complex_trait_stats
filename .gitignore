@@ -1,5 +1,7 @@
 # Data files
 data/
+*.tar
+*.gz
 
 # Byte-compiled files
 __pycache__/
