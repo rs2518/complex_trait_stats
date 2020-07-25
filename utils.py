@@ -1,16 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Aug  2 12:55:54 2019
-
-@author: raphaelsinclair
-"""
-
-# ============= LOAD LIBRARIES =============== #
-
-import numpy as np
-import pandas as pd
 import os
+
+# import numpy as np
+import pandas as pd
 
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.metrics import mean_absolute_error as MAE
