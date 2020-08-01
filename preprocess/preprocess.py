@@ -4,6 +4,7 @@ import gzip
 import numpy as np
 import pandas as pd
 
+from sklearn.preprocessing import StandardScaler
 
 
 # Load data
@@ -15,11 +16,9 @@ trait = "50-0.0"
 path = os.path.join(directory, "results/", trait)
 
 
-# Set iterables and sample size (for each file)
-max_files = 5
+# Set sample size (for each file) and max number of files to read
+max_files = 4
 sample = 1000
-counter = 0
-merged_data = None
 
 # Create list of results and variant info files
 ext = ".csv.gz"
@@ -37,6 +36,8 @@ variant_files = [file for file in sorted(os.listdir(directory))
 
 
 # Load and append results files
+counter = 0
+merged_data = None
 for file in results_files:
     
     # Define rows to be skipped
@@ -50,30 +51,27 @@ for file in results_files:
                                  replace = False)
     
     # Find chromosome number and load subset of data
-    chr_no = int(file[file.find('.chr')+4:file.find(ext)])
-    imp_results = pd.read_csv('~/' + filepath,
+    chr_no = file[file.find('.chr')+4:file.find(ext)]
+    imp_results = pd.read_csv(filepath,
                      sep = ' ',
                      compression = 'gzip',
                      skiprows = skip_rows)
-    imp_results['Chr_no'] = chr_no * np.ones(
-            len(imp_results), dtype = np.int8)
-
+    imp_results["Chromosome"] = ["chr_" + chr_no] * len(imp_results)
 
     # Load variant info files and append with corresponding results file
     for file in variant_files:
         
         # Check if chromosome numbers match and merge files
-        chr_no2 = int(file[file.find('.chr')+4:file.find(ext)])
+        chr_no2 = file[file.find('.chr')+4:file.find(ext)]
         if chr_no == chr_no2:
             
-            imp_stats = pd.read_csv('~/' + os.path.join(directory, file),
+            imp_stats = pd.read_csv(os.path.join(directory, file),
                              sep = ' ')
-            imp_stats['Chr_no'] = chr_no2 * np.ones(
-                    len(imp_stats), dtype = np.int8)
+            imp_stats["Chromosome"] = ["chr_" + chr_no2] * len(imp_stats)
             
             df = pd.merge(imp_results, imp_stats,
-                          right_on = ['SNP', 'Chr_no'],
-                          left_on = ['SNP', 'Chr_no'],
+                          right_on = ["SNP", "Chromosome"],
+                          left_on = ["SNP", "Chromosome"],
                           how = 'inner')
             
             merged_data = pd.concat([merged_data, df], axis = 0)
@@ -93,7 +91,6 @@ for file in results_files:
 
 # Re-index data to remove repeated indices
 merged_data.index = np.arange(len(merged_data))
-
 
 
 
@@ -123,16 +120,45 @@ for index in indices_iscore:
 # Drop redundant columns
 merged_data.drop(['iscore', 'Allele'], axis = 1, inplace = True)
 
-# Log-transformed p-values
-merged_data['log_p_val'] = -np.log10(merged_data['p_value'])
+# Reorder columns and log-transform p-values
+cols = merged_data.columns.to_list()
+cols.append(cols.pop(cols.index("p_value")))
+merged_data = merged_data[cols]
+# merged_data["log_p_val"] = -np.log10(merged_data["p_value"])
 
 
 
+# Preprocess data
+# ---------------
+# The data contains a mixture of continuous and categorical predictors.
+# The continuous predictors are scaled using StandardScaler.
+# P-values are left unscaled for now. Categorical variables are handled
+# according to the model run
+
+# Continuous columns
+scaled_data = merged_data.copy()
+num_cols = [col for col in scaled_data.select_dtypes(
+        exclude=["category", "object"]).columns if col != "p_value"]
+
+sc = StandardScaler()
+
+scaled_data[num_cols] = sc.fit_transform(scaled_data[num_cols])
+scaled_data["log_p_val"] = -np.log10(scaled_data["p_value"])
+
+
+                
 # Save dataframe
-# -----------------------------
-# Save random sample of merged dataframe
+# --------------
+# Save dataframes or random sample of dataframes in csv format
 
-# CSV format
+# Sampled data
 sample_merged = merged_data.sample(n = 500, random_state = 1010)
-sample_merged.to_csv(os.path.join(directory, "snp_data.csv"))
+sample_merged.to_csv(os.path.join(directory, "snp_raw.csv"))
+
+sample_processed = scaled_data.sample(n = 500, random_state = 1010)
+sample_processed.to_csv(os.path.join(directory, "snp_processed.csv"))
 print('Data saved!')
+
+# Full data
+# merged_data.to_csv(os.path.join(directory, "snp_raw.csv"))
+# scaled_data.to_csv(os.path.join(directory, "snp_processed.csv"))
