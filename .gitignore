@@ -3,6 +3,9 @@ data/
 *.tar
 *.gz
 
+# Plots
+plots/
+
 # Byte-compiled files
 __pycache__/
 *.pyc
