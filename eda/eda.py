@@ -1,99 +1,130 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 25 12:47:03 2019
+# =============================================================================
+# TEMPORARY IMPORT FOR USE IN AN INTERPRETER
+# =============================================================================
+import os, sys
 
-@author: raphaelsinclair
-"""
+directory = "Desktop/Term 3 MSc Project"
 
+path = os.path.join(os.path.abspath('.'), directory)
+sys.path.append(path)
+# =============================================================================
 
-# ============= LOAD DATA =============== #
+import os
 
 import numpy as np
 import pandas as pd
-import os
-
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+from complex_trait_stats.utils import load_dataframe
+from complex_trait_stats.utils import ROOT, RAW_DATA, PROCESSED_DATA
+
+
+
+# Load data
+df = load_dataframe(RAW_DATA)
+
+
+
+################################################
+def plot_funnel(x, y, data, n_outlier=None):
+    """Funnel plot of Beta values vs. SE after excluding n_outlier (largest
+    deviating) points
+    """
+    
+    # Remove outliers
+    x = data[x].values
+    y = data[y].values
+    mean_x = np.mean(x)
+    
+    if n_outlier is not None:
+        out_x = np.argsort(np.abs(x))[-n_outlier:]
+        out_y = np.argsort(np.abs(y))[-n_outlier:]
+        x = np.delete(x, out_x)
+        y = np.delete(y, out_y)
+    
+    
+    fig = plt.figure()
+    
+    plt.scatter(x, y, edgecolors="w")
+    plt.xlabel("Beta")
+    plt.ylabel("SE")
+    plt.title("Funnel plot: Beta vs SE", fontsize=16)
+    plt.grid(color="lightgrey")
+    plt.axis([min(x), max(x), max(y), min(y)])
+    plt.vlines(mean_x, min(y), max(y), colors="r", linestyles="--")
+    
+    plt.text(5, 10, r'$\bar\beta={:.{}f}$'.format(mean_x, 4), fontsize=12)
+    
+    # plt.show()
+    
+    return fig
+
+plot_funnel("Beta", "SE", df, 4)
+
+################################################
+
+
+def plot_distributions(a, data, n_outlier=None, **kwargs):
+    """Distribution plots for continuous predictors
+    
+    Returns KDE plot and violin plot.
+    """
+    
+    # Remove outliers
+    x = data[a].values
+    
+    if n_outlier is not None:
+        out_x = np.argsort(np.abs(x))[-n_outlier:]
+        x = np.delete(x, out_x)
+    
+    # Density plot and violin plot
+    lims = (min(x), max(x))
+
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    
+    plt.suptitle("'{}' distribution".format(a), fontsize=16)
+
+    sns.kdeplot(x, shade=True, legend=False, ax=axes[0], **kwargs)
+    sns.violinplot(x=x, ax=axes[1], **kwargs)
+    axes[0].set_xlim(lims[0], lims[1])
+    axes[1].set_xlim(lims[0], lims[1])
+    axes[1].xaxis.tick_top()
+    axes[1].tick_params(direction="in")
+
+    
+    # plt.show()
+    
+    return fig
+
+
+plot_distributions("p_value", df, n_outlier=None)
+plot_distributions("iscores", df, n_outlier=None)
+plot_distributions("MAF", df, n_outlier=None)
+plot_distributions("HWE_P", df, n_outlier=None)
+
+
+
+################################################
+
+
+### DISTRIBUTION PLOTS (ISCORES, HWE-P)
 import matplotlib.gridspec as gridspec
-
-
-## Load dataframes
-#hpc_path = '/rdsgpfs/general/project/medbio-berlanga-group/live/projects/ml_trait_prediction'
-#os.chdir(hpc_path)
-#path = os.path.join(hpc_path, directory)
-os.chdir(os.path.expanduser('~'))
-home = 'Desktop/MSc Health Data Analytics - IC/HDA/Term 3 MSc Project/Analysis/GeneAtlas/'
-directory = 'Data/Processed/'
-
-data = pd.read_pickle(
-        os.path.join(home, directory) + 'processed_data_sample.pkl')
-int_df = pd.read_pickle(
-        os.path.join(home, directory) + 'integrated_data_sample.pkl')
-
-
-
-# ============= EXPLORATORY ANALYSIS =============== #
-
-
-##### FUNNEL PLOTS (BETA, SE)
-
-gs1 = gridspec.GridSpec(2, 2, height_ratios=[10, 8])
-gs1.update(wspace = 0.3, hspace = 0.3)
-fig1 = plt.figure()
-
-sns.set_style('darkgrid')
-
-
-# Funnel plot
-ax1 = fig1.add_subplot(gs1[0, :])
-sns.scatterplot(int_df['Beta'], int_df['SE'], ax = ax1)
-
-beta_xlim = max(np.abs(int_df['Beta']))
-se_ylim = np.ceil(max(int_df['SE']))
-mean_beta = np.mean(int_df['Beta'])
-
-ax1.set(xlim = (-beta_xlim, beta_xlim), ylim = (0, se_ylim))
-ax1.invert_yaxis()
-ax1.axvline(mean_beta, linestyle = '--', c = 'grey')
-ax1.text(mean_beta, 7,
-         r'$\mu={:.{}f}$'.format(mean_beta, 4),
-         fontsize = 10)
-
-
-# Violin plot
-ax2 = fig1.add_subplot(gs1[1, 0])
-sns.violinplot(y=int_df['SE'], ax = ax2)
-
-
-# Distribution plot
-ax3 = fig1.add_subplot(gs1[1, 1])
-sns.distplot(int_df['Beta'], ax = ax3)
-
-ax3.set(xlim = (-beta_xlim, beta_xlim))
-ax3.set_ylabel('Distribution', fontsize = 10)
-
-
-plt.show()
-# Funnel shows little/no publication bias (within sample)
-
-
-
-##### DISTRIBUTION PLOTS (ISCORES, HWE-P)
 
 gs2 = gridspec.GridSpec(2, 1)
 gs2.update(hspace = 0.5)
+
+
 fig2 = plt.figure()
 
 sns.set_style('darkgrid')
 
-
 # Iscores
 ax4 = fig2.add_subplot(gs2[0, 0])
-sns.distplot(int_df['iscores'], hist = False, ax = ax4)
+sns.distplot(df['iscores'], hist = False, ax = ax4)
 
-percentile = np.percentile(int_df['iscores'], 5)
-iscore_prop = sum(int_df['iscores'] >= percentile)/len(int_df['iscores'])
+percentile = np.percentile(df['iscores'], 5)
+iscore_prop = sum(df['iscores'] >= percentile)/len(df['iscores'])
 iscore_xkde, iscore_ykde = ax4.lines[0].get_data()
 ax4.text(0.7, 2, '{:.1f}%'.format(100 * iscore_prop))
 
@@ -107,14 +138,13 @@ ax4.fill_between(iscore_xkde, iscore_ykde, where=(iscore_xkde >= percentile),
 ax4.fill_between(iscore_xkde, iscore_ykde, where=(iscore_xkde <= percentile),
                  interpolate = True, alpha = 0.25, color = 'red')
 
-
 # HWE_P
 ax5 = fig2.add_subplot(gs2[1, 0])
-sns.distplot(int_df['HWE_P'], hist = False, ax = ax5)
+sns.distplot(df['HWE_P'], hist = False, ax = ax5)
 
 hwe_xkde, hwe_ykde = ax5.lines[0].get_data()
 threshold = 0.05
-hwe_prop = sum(int_df['HWE_P'] > threshold)/len(int_df['HWE_P'])
+hwe_prop = sum(df['HWE_P'] > threshold)/len(df['HWE_P'])
 
 ax5.set(xlim = (0, 1))
 x = ax5.get_xlim
@@ -131,6 +161,7 @@ ax5.fill_between(hwe_xkde, hwe_ykde, where=(hwe_xkde <= threshold),
 plt.show()
 
 
+################################################
 
 ##### P_VALUE DISTRIBUTION PLOTS
 
@@ -143,7 +174,7 @@ sns.set_style('darkgrid')
 
 # P_value
 ax6 = fig3.add_subplot(gs3[0, 0])
-sns.distplot(int_df['p_value'], hist = False, 
+sns.distplot(df['p_value'], hist = False, 
              kde_kws={'shade' : True}, ax = ax6)
 
 ax6.set(xlim = (0, 1))
@@ -151,7 +182,7 @@ ax6.set(xlim = (0, 1))
 
 # Log-transformed p_value
 ax7 = fig3.add_subplot(gs3[0, 1])
-sns.distplot(int_df['log_p_val'], hist = False, 
+sns.distplot(df['log_p_val'], hist = False, 
              kde_kws={'shade' : True}, ax = ax7)
 
 ax7.set(xlim = (0, 1))
@@ -162,6 +193,10 @@ plt.show()
 # shows a peak towards zero in GWAS
 
 
+
+
+
+################################################
 
 ##### DISTRIBUTION PLOTS (POSITION, MAF)
 # Position
