@@ -22,6 +22,7 @@ from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
                                        metrics, plot_coefs)
 
+import time
 
 # Load data and log transform p-values
 df = load_dataframe(RAW_DATA)
@@ -34,6 +35,8 @@ X_train, X_test, y_train, y_test = \
     train_test_split(X.values, y.values, test_size = 0.3,
                      random_state = 1010)
 
+# Time model(s)
+t0 = time.time()
 
 # Instantiate models and dictionary of parameter grids for each model
 classifiers = dict(lasso=Lasso(random_state = 96, max_iter=10000),
@@ -81,5 +84,8 @@ plot_coefs(models["enet p_value"].best_estimator_.coef_, X.columns)
 plot_coefs(models["lasso -log10_p"].best_estimator_.coef_, X.columns)
 plot_coefs(models["ridge -log10_p"].best_estimator_.coef_, X.columns)
 plot_coefs(models["enet -log10_p"].best_estimator_.coef_, X.columns)
-
 #### ElasticNet appears to favour LASSO model
+
+t1 = time.time()
+print("Running time : {:.2f} seconds".format(t1 - t0))
+# ~38 seconds

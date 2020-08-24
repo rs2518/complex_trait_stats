@@ -20,8 +20,9 @@ from sklearn.ensemble import RandomForestRegressor
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, plot_coefs)
+                                       metrics)
 
+import time
 
 # Load data and add column of ones for intercept
 df = load_dataframe(RAW_DATA)
@@ -31,5 +32,16 @@ X = data.drop(['p_value'], axis=1)
 p = data["p_value"]
 log_p = -np.log10(p)
 
+# Time model(s)
+t0 = time.time()
+
 
 rf = RandomForestRegressor(max_dept)
+
+
+
+
+
+t1 = time.time()
+print("Running time : {:.2f} seconds".format(t1 - t0))
+# ~? seconds

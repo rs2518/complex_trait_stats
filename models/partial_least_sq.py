@@ -13,7 +13,7 @@ import os
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.cross_decomposition import PLSRegression, PLSCanonical
@@ -22,6 +22,7 @@ from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
                                        metrics, plot_coefs)
 
+import time
 
 # Load data and add column of ones for intercept
 df = load_dataframe(RAW_DATA)
@@ -34,6 +35,8 @@ X_train, X_test, y_train, y_test = \
     train_test_split(X.values, y.values, test_size = 0.3,
                      random_state = 1010)
 
+# Time model(s)
+t0 = time.time()
 
 # Instantiate parameter dictionary
 params = {"n_components" : np.arange(1, X.shape[1])}
@@ -61,9 +64,10 @@ for i in range(y.shape[1]):
         
 scores.index = index
 
+plot_coefs(pls_cv.best_estimator_.coef_, X.columns, cmap="rainbow")
 
+# PLSCanonical()
 
-
-
-
-# pls_c=PLSCanonical()
+t1 = time.time()
+print("Running time : {:.2f} seconds".format(t1 - t0))
+# ~3 seconds

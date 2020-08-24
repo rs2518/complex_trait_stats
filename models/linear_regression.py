@@ -23,6 +23,7 @@ from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
                                        metrics, plot_coefs)
 
+import time
 
 # Load data and add column of ones for intercept
 df = load_dataframe(RAW_DATA)
@@ -33,6 +34,8 @@ X_int = sm.add_constant(X, prepend=True).rename({"const":"Intercept"}, axis=1)
 p = data["p_value"]
 log_p = -np.log10(p)
 
+# Time model(s)
+t0 = time.time()
 
 # Check that statsmodels and sklearn agree
 models = {}
@@ -67,6 +70,12 @@ for name, y in targets.items():
         scores = scores.append(metrics(y_test, y_pred), ignore_index=True)
 
 scores.index = index
+
+
+t1 = time.time()
+print("Running time : {:.2f} seconds".format(t1 - t0))
+# ~0.59 seconds
+
 
 # statsmodels results match with sklearn
 np.testing.assert_array_almost_equal(
