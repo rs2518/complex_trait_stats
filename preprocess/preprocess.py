@@ -11,9 +11,10 @@ from sklearn.preprocessing import StandardScaler
 # ---------
 # Randomly select row indices then read randomly selected rows of data
 
-directory = "Desktop/Term 3 MSc Project/complex_trait_stats/data"
+root_dir = "Desktop/Term 3 MSc Project/complex_trait_stats"
+directory = os.path.join(root_dir, "data/geneatlas")
 trait = "50-0.0"
-path = os.path.join(directory, "results/", trait)
+path = os.path.join(directory, "results", trait)
 
 
 # Set sample size (for each file) and max number of files to read
@@ -56,7 +57,7 @@ for file in results_files:
                      sep = ' ',
                      compression = 'gzip',
                      skiprows = skip_rows)
-    imp_results["Chromosome"] = ["chr_" + chr_no] * len(imp_results)
+    imp_results["Chromosome"] = ["chr" + chr_no] * len(imp_results)
 
     # Load variant info files and append with corresponding results file
     for file in variant_files:
@@ -67,7 +68,7 @@ for file in results_files:
             
             imp_stats = pd.read_csv(os.path.join(directory, file),
                              sep = ' ')
-            imp_stats["Chromosome"] = ["chr_" + chr_no2] * len(imp_stats)
+            imp_stats["Chromosome"] = ["chr" + chr_no2] * len(imp_stats)
             
             df = pd.merge(imp_results, imp_stats,
                           right_on = ["SNP", "Chromosome"],
