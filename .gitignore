@@ -1,7 +1,9 @@
 # Data files
-data/
+# data/
 *.tar
 *.gz
+*.txt
+*.csv
 
 # Plots
 plots/
