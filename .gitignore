@@ -2,6 +2,8 @@
 # data/
 *.tar
 *.gz
+*.txt
+*.csv
 
 # Plots
 plots/
