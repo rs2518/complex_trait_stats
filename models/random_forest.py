@@ -21,7 +21,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics)
+                                       metrics, cv_table)
 
 import time
 
@@ -66,7 +66,7 @@ for i in range(y.shape[1]):
                                return_train_score=True)
     rf_cv.fit(X_train, y_train[:,i])
     
-    model_id = "Random Forest: "+y.columns[i]
+    model_id = "rf "+y.columns[i]
     models[model_id] = rf_cv
     index.append(model_id)
     
@@ -117,9 +117,14 @@ cmap = sns.hls_palette(X.shape[1], l=.55)
 for i, key in enumerate(models.keys()):
     importances = models[key].best_estimator_.feature_importances_
     title = "Random Forest Feature Importance: '{}'".format(
-        key[len("Random Forest "):])
+        key[len("rf "):])
     plot_feature_importance(importances=importances, feature_names=X.columns,
                             title=title, color=cmap)
     
 # fig.tight_layout()
 # plt.show()
+
+
+# Analyse cross-validation results stability of hyperparameter selection
+cv_tables = {key:cv_table(models[key].cv_results_, ordered="ascending")
+              for key in models.keys()}

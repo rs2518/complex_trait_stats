@@ -57,7 +57,7 @@ for name, y in targets.items():
             coef = res.coef_            
             conf_int = None
         
-         
+        # Plot coefficients with error bars (if available) 
         plot_coefs(coef, X_int.columns, conf_int=conf_int, cmap="signif")
         
         model_id = pkg+" "+name

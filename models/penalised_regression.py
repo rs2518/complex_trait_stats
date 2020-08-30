@@ -20,7 +20,7 @@ from sklearn.linear_model import Lasso, Ridge, ElasticNet
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, plot_coefs)
+                                       metrics, plot_coefs, cv_table)
 
 
 # Load data and log transform p-values
@@ -75,11 +75,12 @@ scores.index = index
 
 
 # Plot model coefficients
-plot_coefs(models["lasso p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["ridge p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["enet p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["lasso -log10_p"].best_estimator_.coef_, X.columns)
-plot_coefs(models["ridge -log10_p"].best_estimator_.coef_, X.columns)
-plot_coefs(models["enet -log10_p"].best_estimator_.coef_, X.columns)
+for key in models.keys():
+    plot_coefs(models[key].best_estimator_.coef_, X.columns)
 
 #### ElasticNet appears to favour LASSO model
+
+
+# Analyse cross-validation results stability of hyperparameter selection
+cv_tables = {key:cv_table(models[key].cv_results_, ordered="ascending")
+              for key in models.keys()}
