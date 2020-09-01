@@ -21,7 +21,7 @@ import statsmodels.api as sm
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, plot_coefs)
+                                       metrics, plot_coefs, plot_true_vs_pred)
 
 
 # Load data and add column of ones for intercept
@@ -74,9 +74,15 @@ scores.index = index
 
 
 
-# ax.plot(lims, lims, ls="--", c="red")
-# plt.title('True vs. Predicted')
-# plt.ylabel('y_pred')
-# plt.xlabel('y_true')
-
-# plt.show()
+# Select results from a single package and perform model diagnostics on
+# models for raw p-values and log-transformed p-values
+for key in models.keys():
+    pkg = "sklearn"
+    if pkg in key:
+        y_pred = models[key].predict(X_test)
+        
+        col = key[len(pkg)+1:]
+        title = " ".join((r"$y_{test}$", "vs",
+                         "$y_{predicted}$ (%s)" % (col)))
+        ind = y.columns.to_list().index(col)
+        plot_true_vs_pred(y_test[:,ind], y_pred, title=title)

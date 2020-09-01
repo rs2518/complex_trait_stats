@@ -21,7 +21,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, cv_table)
+                                       metrics, cv_table, plot_true_vs_pred)
 
 import time
 
@@ -128,3 +128,15 @@ for i, key in enumerate(models.keys()):
 # Analyse cross-validation results stability of hyperparameter selection
 cv_tables = {key:cv_table(models[key].cv_results_, ordered="ascending")
               for key in models.keys()}
+
+
+
+# Perform model diagnostics on raw p-values and log-transformed p-values
+for key in models.keys():
+    y_pred = models[key].predict(X_test)
+    
+    col = key[len("rf")+1:]
+    title = " ".join((r"$y_{test}$", "vs",
+                     "$y_{predicted}$ (%s)" % (col)))
+    ind = y.columns.to_list().index(col)
+    plot_true_vs_pred(y_test[:,ind], y_pred, title=title)

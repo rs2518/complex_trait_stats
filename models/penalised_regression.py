@@ -20,7 +20,8 @@ from sklearn.linear_model import Lasso, Ridge, ElasticNet
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, plot_coefs, cv_table)
+                                       metrics, plot_coefs, cv_table,
+                                       plot_true_vs_pred)
 
 
 # Load data and log transform p-values
@@ -84,3 +85,14 @@ for key in models.keys():
 # Analyse cross-validation results stability of hyperparameter selection
 cv_tables = {key:cv_table(models[key].cv_results_, ordered="ascending")
               for key in models.keys()}
+
+
+
+# Perform model diagnostics on each penalised regression model on both the
+# raw p-values and log-transformed p-values
+for clf in classifiers.keys():
+    for col in y.columns:
+        y_pred = models[clf+" "+col].predict(X_test)
+        title = clf+" (%s)" % (col)
+        ind = y.columns.to_list().index(col)
+        plot_true_vs_pred(y_test[:,ind], y_pred, title=title)
