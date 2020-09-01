@@ -20,7 +20,8 @@ from sklearn.linear_model import Lasso, Ridge, ElasticNet
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
-                                       metrics, plot_coefs)
+                                       metrics, plot_coefs, cv_table,
+                                       plot_true_vs_pred)
 
 import time
 
@@ -77,15 +78,29 @@ for i in range(y.shape[1]):
 scores.index = index
 
 
-# Plot model coefficients
-plot_coefs(models["lasso p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["ridge p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["enet p_value"].best_estimator_.coef_, X.columns)
-plot_coefs(models["lasso -log10_p"].best_estimator_.coef_, X.columns)
-plot_coefs(models["ridge -log10_p"].best_estimator_.coef_, X.columns)
-plot_coefs(models["enet -log10_p"].best_estimator_.coef_, X.columns)
-#### ElasticNet appears to favour LASSO model
-
 t1 = time.time()
 print("Running time : {:.2f} seconds".format(t1 - t0))
 # ~38 seconds
+
+
+# Plot model coefficients
+for key in models.keys():
+    plot_coefs(models[key].best_estimator_.coef_, X.columns)
+
+#### ElasticNet appears to favour LASSO model
+
+
+# Analyse cross-validation results stability of hyperparameter selection
+cv_tables = {key:cv_table(models[key].cv_results_, ordered="ascending")
+              for key in models.keys()}
+
+
+
+# Perform model diagnostics on each penalised regression model on both the
+# raw p-values and log-transformed p-values
+for clf in classifiers.keys():
+    for col in y.columns:
+        y_pred = models[clf+" "+col].predict(X_test)
+        title = clf+" (%s)" % (col)
+        ind = y.columns.to_list().index(col)
+        plot_true_vs_pred(y_test[:,ind], y_pred, title=title)
