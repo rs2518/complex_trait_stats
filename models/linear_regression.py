@@ -30,57 +30,49 @@ data = process_category(df)
 
 X = data.drop(['p_value'], axis=1)
 X_int = sm.add_constant(X, prepend=True).rename({"const":"Intercept"}, axis=1)
-p = data["p_value"]
-log_p = -np.log10(p)
+y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+y.columns = ["p_value", "-log10_p"]
+X_train, X_test, y_train, y_test = \
+    train_test_split(X_int.values, y.values, test_size=0.3,
+                     random_state=1010)
+
 
 
 # Check that statsmodels and sklearn agree
 models = {}
 index = []
 scores = pd.DataFrame()
-targets = dict(p=p, log_p=log_p)
 
-for name, y in targets.items():
-    X_train, X_test, y_train, y_test = \
-        train_test_split(X_int.values, y.values, test_size = 0.3,
-                         random_state = 1010)
+for i in range(y.shape[1]):
         
     classifiers = dict(sklearn=LinearRegression(fit_intercept=False),
-                       statsmodels=sm.OLS(y_train, X_train))
+                       statsmodels=sm.OLS(y_train[:,i], X_train))
     for pkg, clf in classifiers.items():
         if hasattr(clf, "df_model"):
             res = clf.fit()
             coef = res.params            
             conf_int = res.conf_int(alpha=0.05)
         else:
-            res = clf.fit(X_train, y_train)
+            res = clf.fit(X_train, y_train[:,i])
             coef = res.coef_            
             conf_int = None
         
         # Plot coefficients with error bars (if available) 
         plot_coefs(coef, X_int.columns, conf_int=conf_int, cmap="signif")
         
-        model_id = pkg+" "+name
+        model_id = pkg+" "+y.columns[i]
         models[model_id] = res
         index.append(model_id)
         y_pred = res.predict(X_test)
-        scores = scores.append(metrics(y_test, y_pred), ignore_index=True)
+        scores = scores.append(metrics(y_test[:,i], y_pred), ignore_index=True)
 
 scores.index = index
 
-# statsmodels results match with sklearn
-np.testing.assert_array_almost_equal(
-    models["statsmodels log_p"].params, models["sklearn log_p"].coef_)
+# # statsmodels results match with sklearn
+# np.testing.assert_array_almost_equal(
+#     models["statsmodels -log10_p"].params, models["sklearn -log10_p"].coef_)
 
 
-# # Plot true values vs. predictions
-# fig, ax = plt.subplots()
-
-# ax.scatter(y_test, y_pred)
-
-# lims = [
-#     np.min([ax.get_xlim(), ax.get_ylim()]),
-#     np.max([ax.get_xlim(), ax.get_ylim()])]
 
 # ax.plot(lims, lims, ls="--", c="red")
 # plt.title('True vs. Predicted')
