@@ -4,6 +4,7 @@
 *.gz
 *.txt
 *.csv
+*.docx
 
 # Plots
 plots/
