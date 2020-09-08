@@ -20,8 +20,8 @@ from complex_trait_stats.utils import ROOT
 # ---------
 # Load GIANT height data
 
-path = os.path.join(ROOT, "data/giant")
-filepath = os.path.join(path, "height_All_add_SV.txt")
+path = os.path.join(ROOT, "data")
+filepath = os.path.join(path, "giant/height_All_add_SV.txt")
 data = pd.read_csv(filepath, sep="\t")
 
                 
@@ -37,5 +37,8 @@ data = pd.read_csv(filepath, sep="\t")
 
 # Save SNP list
 snps = data["SNPNAME"].sample(n=400, random_state=1010)
-snps.to_csv(os.path.join(path, "giant_snps.txt"),
+snps.to_csv(os.path.join(path, "annovar", "giant_snp_only.txt"),
             sep=" ", header=None, index=None)
+
+#### NOTE: DtypeWarning may appear because low_memory option was not properly
+# deprecated
