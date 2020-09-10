@@ -13,6 +13,8 @@ from sklearn.metrics import explained_variance_score as explained_var
 from sklearn.metrics import median_absolute_error
 from sklearn.metrics import r2_score as R2
 # from scipy.stats import pearsonr
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 
 
@@ -192,3 +194,155 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
     ax.set_title(title)
 
     # plt.show()
+
+
+
+# Stability analysis
+# ------------------
+
+def _coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
+               random_state=None, scale_X=False,
+               return_scaled_X=False, **split_options):
+    """Returns dictionary with array of model coefficients at each iteration
+    for a given list of estiamtors
+    """
+    # Check if estimators is an iterable and instantiate results dictionary
+    if not hasattr(estimators, "__iter__"):
+        estimators = [estimators]
+    coefs = {type(estimator).__name__:np.zeros((X.shape[1], n_iters))
+             for estimator in estimators}
+
+    # Break links to original data
+    X_s = X.copy()
+    Y_s = Y.copy()
+    
+    # Standard scale numerical features
+    if scale_X:
+        num_cols = X_s.select_dtypes(
+            exclude=["object", "category"]).columns
+        scaler = StandardScaler()
+        X_s[num_cols] = scaler.fit_transform(X_s[num_cols])
+
+    # Loop over n_iters
+    for i in range(n_iters):
+        # Take random sample of data
+        if bootstrap:
+            X_s, _, Y_s, _ = \
+                train_test_split(X, Y, random_state=random_state,
+                                 **split_options)
+            if isinstance(random_state, int):
+                random_state += 1
+        
+        # Fit estimator and store coefficients
+        for estimator in estimators:
+            estimator.fit(X_s, Y_s)
+            coefs[type(estimator).__name__][:,i] = estimator.coef_
+                
+    # Store coefficients as a dataframe
+    inds = X.columns
+    cols = range(1, n_iters+1)
+    coefs = {
+        k:pd.DataFrame(v, index=inds, columns=cols) for k, v in coefs.items()}
+
+    if return_scaled_X:
+        return coefs, X_s
+    else:
+        return coefs
+
+
+def _mean_summary(coef_dict, return_std=False):
+    """Return means and standard deviations from _coef_dict dictionary
+    """
+    n_models = len(coef_dict.keys())
+    features = coef_dict[list(coef_dict.keys())[0]].index
+    
+    mean = np.zeros((len(features), n_models))
+    std = np.zeros_like(mean)
+    for i, key in enumerate(coef_dict.keys()):
+        mean[:, i] = coef_dict[key].mean(axis=1)
+        std[:, i] = coef_dict[key].std(axis=1)    # Default ddof = 1
+       
+    if return_std:
+        return mean, std
+    else:
+        return mean
+
+
+def plot_stability(coef_matrix, title=None, vline_kwargs={},
+                   bp_kwargs={}, hm_kwargs={}):
+    """Plot heatmap and boxplot of model coefficients
+    
+    Input is dataframe of model coefficients
+    """
+    # Set default suptitle and kwargs for plots
+    if title is None:
+        title = ""
+    if len(vline_kwargs) == 0:
+        vline_kwargs={"ls":":", "c":"g"}
+    if len(bp_kwargs) == 0:
+        flierprops = dict(markersize=3)
+        bp_kwargs={"flierprops":flierprops}
+    
+    # Set inputs and labels
+    features = coef_matrix.index
+    coefs = coef_matrix.values
+    positions = [i+0.5 for i in range(len(features))]
+    xticklabels = np.arange(1, coefs.shape[1]+1)
+    
+    fig, axes = plt.subplots(1, 2, figsize=(12,8), sharey=True)
+    plt.suptitle(title, fontsize=16)
+    
+    # sns.boxplot(data=coef_matrix.T, orient="h", ax=axes[0], **bp_kwargs)    
+    axes[0].boxplot(coefs.T, vert=False, labels=features,
+                    positions=positions, **bp_kwargs)
+    axes[0].axvline(**vline_kwargs)
+    axes[0].set_xlabel("Model coefficients")
+    sns.heatmap(data=coefs, vmin=-1, vmax=1, cmap="vlag", 
+                xticklabels=xticklabels, yticklabels=features, ax=axes[1],
+                **hm_kwargs)
+    axes[1].set_xlabel("Iteration #")
+    
+    plt.tight_layout()
+    # plt.show()
+        
+
+def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
+    """Plot heatmap mean model coefficients across dictionary of models
+    """
+    # Set default suptitle and kwargs for plots
+    if title is None:
+        title = "Mean coefficients"
+    models = list(coef_dict.keys())
+    features = coef_dict[list(coef_dict.keys())[0]].index
+    
+    # Return mean coefficients
+    mean_coefs = _mean_summary(coef_dict)
+    
+    fig, ax = plt.subplots()
+    plt.suptitle(title, fontsize=16)
+    
+    sns.heatmap(data=mean_coefs, vmin=-1, vmax=1, cmap="vlag", 
+                xticklabels=models, yticklabels=features, ax=ax,
+                **hm_kwargs)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
+    ax.set_xlabel("Model")
+    ax.set_ylabel("Features")
+    
+    # plt.show()
+    
+    
+
+# def _get_boxplot_stats(boxplot, labels):
+#     """Get summary stats from boxplot
+#     """
+#     stats = []
+#     for i in range(len(labels)):
+#         d = dict(feature=labels,
+#                   lower_whisker=boxplot["whiskers"][i*2].get_xdata()[1],
+#                   q1=boxplot["boxes"][i].get_xdata()[1],
+#                   q2=boxplot["medians"][i].get_xdata()[1],
+#                   q3=boxplot["boxes"][i].get_xdata()[2],
+#                   upper_whisker=boxplot['whiskers'][(i*2)+1].get_xdata()[1])
+#         stats.append(d)
+
+#     return pd.DataFrame(stats)
