@@ -18,5 +18,10 @@ import pandas as pd
 from complex_trait_stats.utils import ROOT
 
 
-filepath = os.path.join(ROOT, "data/annovar", "myanno.hg19_multianno.csv")
+# filepath = os.path.join(ROOT, "data/annovar", "myanno.hg19_multianno.csv")
+# anno = pd.read_csv(filepath)
+
+filepath = os.path.join(ROOT, "data/annovar", "giantanno.hg19_multianno.csv")
 anno = pd.read_csv(filepath)
+
+# ANNOVAR leaves lots of missing data. Consider another source?
