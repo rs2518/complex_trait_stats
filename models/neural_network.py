@@ -17,11 +17,11 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from tensorflow.keras.regularizers import l1_l2
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
-# from tensorflow.keras import Input, Model
 
 from complex_trait_stats.utils import RAW_DATA
 from complex_trait_stats.utils import (load_dataframe, process_category,
@@ -29,7 +29,7 @@ from complex_trait_stats.utils import (load_dataframe, process_category,
 
 import time
 
-# Load data and add column of ones for intercept
+# Load data and log transform p-values
 df = load_dataframe(RAW_DATA)
 data = process_category(df)
 
@@ -43,11 +43,11 @@ X_train, X_test, y_train, y_test = \
 # Time model(s)
 t0 = time.time()
 
-def create_model(input_dim, hidden_layers=1,
-                 first_neurons=5, hidden_neurons=5,
-                 activation="relu", last_activation="linear",
-                 dropout=0, l1=None, l2=None,
-                 loss="mean_squared_error", optimizer="sgd"):
+# Model generating function
+n_features = X.shape[1]
+def create_model(hidden_layers=1, first_neurons=5, hidden_neurons=5,
+                 activation="relu", last_activation=None,
+                 dropout=0, l1=None, l2=None, learning_rate=1e-03):
     """Neural network model generating function
     
     Defines neural network architecture according to given arguments. This
@@ -56,17 +56,17 @@ def create_model(input_dim, hidden_layers=1,
     """
     # Create object for kernel_regularization using l1 and l2 values
     kernel_regularizer = l1_l2(l1=l1, l2=l2)
+    optimizer = Adam(learning_rate=learning_rate)
     
     # Instantiate model
     model = Sequential()
     
-    # Build input layer and subsequent hidden layers. Add dropout layer if
-    # rate > 0
+    # Build input layer and subsequent hidden layers. Add dropout onto layers
     first = True
     for n in range(hidden_layers):
         if first:
             model.add(Dense(first_neurons,
-                            input_dim=input_dim,
+                            input_dim=n_features,
                             activation=activation,
                             kernel_regularizer=kernel_regularizer))
             first = False
@@ -77,68 +77,61 @@ def create_model(input_dim, hidden_layers=1,
         if dropout!=0:
             model.add(Dropout(dropout))
     
-    # Build output layer with single neuron (unit) with last_activation
+    # Build output layer with single neuron (unit). Compile resulting model
     model.add(Dense(1, activation=last_activation))
-    
-    # Compile model with given loss functions and optimization algorithm
-    model.compile(loss=loss, optimizer=optimizer)
+    model.compile(loss="mean_squared_error", optimizer=optimizer)
     
     return model
     
-# Scikit-learn wrapper for keras regression model
-# model = create_model(input_dim=X_train.shape[1])
-mlp = KerasRegressor(build_fn=create_model, input_dim=X.shape[1],
-                     epochs=2, batch_size=20, verbose=0)
+mlp = KerasRegressor(build_fn=create_model, epochs=50, batch_size=40,
+                     verbose=0)
  
 
 # Set up parameter selection for RandomizedSearchCV param_grids
-# epochs = [5, 50]
-# batch_size = [20, 40, 80]
-# l1=[None, 1e-3]
-# l2=[None, 1e-3]
-param_grid = dict(hidden_layers=[1, 2, 3],
-                  first_neurons=[5],
-                  hidden_neurons=[5, 20],
-                  activation=["relu", "linear"],
-                  last_activation=["linear"],
-                  dropout=[0, 0.2],
-                  optimizer=["sgd", "adam"])
+fn_params = dict(epochs=[10, 50],
+                 batch_size=[20, 80],
+                 hidden_layers=[2, 4, 8],
+                 first_neurons=[25, 50, 100],
+                 hidden_neurons=[5, 10, 25, 50],
+                 activation=["relu", "softplus"],
+                 last_activation=[None],
+                 dropout=[0, 0.1, 0.2],
+                 l1=[None, 1e-02, 1e-04],
+                 l2=[None, 1e-02, 1e-04],
+                 learning_rate=[1e-01])
 
 # Tune hyperparameters using cross-validation. Run model for both the raw
 # p-values and log-transformed p-values
-folds = 3
+folds = 5
 models = {}
 index = []
-# scores = pd.DataFrame()
+scores = pd.DataFrame()
 
-# for i in range(y.shape[1]):
-i=0
-mlp_cv = RandomizedSearchCV(estimator=mlp,
-                            param_distributions=param_grid,
-                            n_iter=2,
-                            cv=folds,
-                            random_state=1010,
-                            return_train_score=True)
-mlp_cv.fit(X_train, y_train[:,i])
-
-model_id = "MLP "+y.columns[i]
-models[model_id] = mlp_cv
-index.append(model_id)
-
-# y_pred = mlp_cv.best_estimator_.predict(X_test)
-# scores = scores.append(metrics(y_test[:,i], y_pred), ignore_index=True)        
-        
-# scores.index = index
-
-
-
-
-# # list some properties of the network
-# model.summary()
-# model.evaluate(X_test, y_test)
+for i in range(y.shape[1]):
+    mlp_cv = RandomizedSearchCV(estimator=mlp,
+                                param_distributions=fn_params,
+                                n_iter=10,
+                                cv=folds,
+                                random_state=1010,
+                                n_jobs=-2,
+                                return_train_score=True)
+    
+    model_id = "MLP "+y.columns[i]
+    models[model_id] = mlp_cv.fit(X_train, y_train[:,i])
+    index.append(model_id)
+    
+    y_pred = mlp_cv.best_estimator_.predict(X_test)
+    scores = scores.append(metrics(y_test[:,i], y_pred), ignore_index=True)
+    
+    # # View properties of network with best hyperparameters
+    # p = {k:v for k, v in mlp_cv.best_params_.items()
+    #      if k not in ["epochs", "batch_size"]}
+    # nn = create_model(**p)
+    # nn.summary()
+    
+scores.index = index
 
 
-
-# t1 = time.time()
-# print("Running time : {:.2f} seconds".format(t1 - t0))
-# # ? seconds
+t1 = time.time()
+print("Running time : {:.2f} seconds".format(t1 - t0))
+# ~900 seconds
