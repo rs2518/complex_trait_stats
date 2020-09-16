@@ -175,11 +175,11 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
     # Text box
     # corr, p_value = pearsonr(y_true, y_pred)
     corr = np.corrcoef(y_true, y_pred)[0,1]
-    # sse = MSE(y_true, y_pred) * len(y_true)
-    r2 = R2(y_true, y_pred)
+    sse = MSE(y_true, y_pred) * len(y_true)
+    # r2 = R2(y_true, y_pred)
     text = "\n".join((
         r"Pearson's $\rho = %.4f$" % (corr),
-        r"$\mathit{R}^2 = %.4f$" % (r2)))
+        r"Sum of Squared Errors = %.4f$" % (sse)))
     bbox = dict(facecolor='wheat', alpha=0.5)
     
     fig, ax = plt.subplots()
@@ -329,6 +329,106 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     ax.set_ylabel("Features")
     
     # plt.show()
+    
+    
+def _create_control_feature(X, y, positive_control=True, sigma=0.,
+                            random_state=None, name="control_variable"):
+    """Create a positive or negative control feature
+    
+    Adds control feature to array of covariates, X
+    """
+    # If positive control, create a feature highly correlated to y with
+    # additional noise defined by sigma.
+    # Otherwise (negative control), create a feature uncorrelated with y by
+    # shuffling y
+    X2 = X.copy()
+    y2 = np.array(y).reshape(-1, 1)
+    
+    if positive_control:
+        r = np.random.RandomState(random_state)
+        x0 = y2 + r.normal(0, sigma, size=y2.shape)
+    else:
+        from sklearn.utils import shuffle
+        x0 = shuffle(y2, random_state=random_state)
+        
+    # Add feature onto X (dataframe or array)
+    if type(X) == np.ndarray:
+        X2 = np.concatenate((X, x0.reshape(-1, 1)), 1)
+    elif type(X) == pd.core.frame.DataFrame:
+        X2[name] = x0
+    
+    return X2
+        
+    
+def model_validation(estimators, X, y, scoring=None, n_repeats=5,
+                     random_state=None, control_params={},
+                     return_fitted_estimators=False):
+    """Validate list of models using analysis of added control feature
+    
+    May need to rewrite permutation_importance to improve run time
+    """    
+    if not hasattr(estimators, "__iter__"):
+        estimators = [estimators]
+    if random_state is not None:
+        control_params["random_state"] = random_state
+    
+    Xs = _create_control_feature(X=X, y=y, **control_params)
+    
+    # Create arrays to store results
+    importances = np.zeros((n_repeats, len(estimators)))
+    models = []
+    baseline_scores = []
+    
+    from sklearn.inspection._permutation_importance import \
+        _calculate_permutation_scores
+    from sklearn.metrics import check_scoring
+    
+    for i, estimator in enumerate(estimators):
+
+        # Fit estimator then fit baseline score for comparison
+        estimator.fit(Xs, y)
+        scorer = check_scoring(estimator, scoring=scoring)
+        baseline = scorer(estimator, Xs, y)
+        
+        importances[:,i] = \
+            _calculate_permutation_scores(estimator=estimator,
+                                          X=Xs, y=y,
+                                          col_idx=0,
+                                          random_state=random_state,
+                                          n_repeats=n_repeats,
+                                          scorer=scorer)
+        
+        # Get names of estimators and store baseline scores
+        if hasattr(type(estimator), "__name__"):
+            models.append(type(estimator).__name__)
+        else:
+            models.append("MLPRegressor")
+            
+        baseline_scores.append(baseline)
+    
+        # Calculate difference in baseline and permuted scores
+        importances[:,i] = baseline_scores[i] - importances[:,i]
+        
+    scores = pd.DataFrame(importances, index=np.arange(1, n_repeats+1),
+                          columns=models)
+    d = dict(estimator_name=models,
+             fitted_estimator=estimators,
+             baseline_scores=baseline_scores)
+    
+    if return_fitted_estimators:
+        return scores, d
+    else:
+        return scores
+    
+        
+    
+    
+    
+    
+    
+    
+    
+    
     
     
 
