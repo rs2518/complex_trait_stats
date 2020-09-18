@@ -335,7 +335,9 @@ def _create_control_feature(X, y, positive_control=True, sigma=0.,
                             random_state=None, name="control_variable"):
     """Create a positive or negative control feature
     
-    Adds control feature to array of covariates, X
+    Adds control feature to array of covariates, X.
+    Setting positive_control=True creates a 'positive' control feature and
+    setting positive_control=False creates a 'negative' control feature
     """
     # If positive control, create a feature highly correlated to y with
     # additional noise defined by sigma.
@@ -360,12 +362,16 @@ def _create_control_feature(X, y, positive_control=True, sigma=0.,
     return X2
         
     
-def model_validation(estimators, X, y, scoring=None, n_repeats=5,
+def _validate_models(estimators, X, y, scoring=None, n_repeats=5,
                      random_state=None, control_params={},
                      return_fitted_estimators=False):
     """Validate list of models using analysis of added control feature
     
-    May need to rewrite permutation_importance to improve run time
+    Returns dataframe of diffences between the permuted scores and baseline
+    score for the given estimator after fitting on the data with the added
+    control feature.
+    Optionally returns dictionary of fitted estimators and baseline scores if
+    return_fitted_estimators=True
     """    
     if not hasattr(estimators, "__iter__"):
         estimators = [estimators]
@@ -393,7 +399,7 @@ def model_validation(estimators, X, y, scoring=None, n_repeats=5,
         importances[:,i] = \
             _calculate_permutation_scores(estimator=estimator,
                                           X=Xs, y=y,
-                                          col_idx=0,
+                                          col_idx=Xs.shape[1]-1,
                                           random_state=random_state,
                                           n_repeats=n_repeats,
                                           scorer=scorer)
