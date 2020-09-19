@@ -16,13 +16,14 @@ import pandas as pd
 # import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from complex_trait_stats.models.linear_regression import linear_regression
-from complex_trait_stats.models.partial_least_sq import pls_regression
-from complex_trait_stats.models.random_forest import random_forest
-from complex_trait_stats.models.neural_network import multilayer_perceptron
-from complex_trait_stats.models.penalised_regression import (lasso_regression,
-                                                             ridge_regression,
-                                                             enet_regression)
+# from sklearn.linear_model import LinearRegression
+from complex_trait_stats.models._linear_regression import linear_regression
+from complex_trait_stats.models._partial_least_sq import pls_regression
+from complex_trait_stats.models._random_forest import random_forest
+from complex_trait_stats.models._neural_network import multilayer_perceptron
+from complex_trait_stats.models._penalised_regression import (lasso_regression,
+                                                              ridge_regression,
+                                                              enet_regression)
     
 from complex_trait_stats.utils import (RAW_DATA, load_dataframe,
                                        process_category)
@@ -86,7 +87,7 @@ rf_params = dict(n_estimators=[100, 500, 1000],
                  min_samples_leaf=[0.01, 0.1],
                  bootstrap=[True, False])    # 216 possible combinations
 
-rf = random_forest(X_train, y_train, param_grid=rf_params,
+rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=5,
                    random_state=seed)
 
 
@@ -104,7 +105,7 @@ mlp_params = dict(hidden_layers=[2, 4, 8],
                   epochs=[10, 50],
                   batch_size=[20, 80])    # 5832 possible combinations
 
-mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
+mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=5,
                             random_state=seed)
 
 
@@ -112,3 +113,8 @@ mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
 # =============================================================================
 # Stability analysis
 # =============================================================================
+
+# Stability heatmap
+linear_models = [lr, lasso, ridge, enet, pls]
+nonlinear_models = [rf, mlp]
+models = linear_models + nonlinear_models
