@@ -16,13 +16,23 @@ from sklearn.metrics import r2_score as R2
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
+from sklearn.inspection._permutation_importance import \
+    _calculate_permutation_scores
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import check_scoring
+from sklearn.utils import Bunch
 
 
-ROOT = "~/Desktop/Term 3 MSc Project/complex_trait_stats"
+
+ROOT = os.path.join(os.path.expanduser("~"),
+                    "Desktop/Term 3 MSc Project/complex_trait_stats")
 RAW_DATA = "snp_raw.csv"
 PROCESSED_DATA = "snp_processed.csv"
 
 
+
+# Data preprocessing
+# ------------------
 
 def load_dataframe(file):
     """Load data from ROOT folder
@@ -61,7 +71,10 @@ def process_category(data):
 
 
 
-def plot_coefs(coefs, names, conf_int=None, cmap="default"):
+# Model diagnostics
+# -----------------
+
+def plot_coefs(coefs, names, title=None, conf_int=None, cmap="default"):
     """Coefficient plot
     
     Plot coefficients against their respective names. If 'conf_int' is given,
@@ -74,13 +87,17 @@ def plot_coefs(coefs, names, conf_int=None, cmap="default"):
     interval is given.
     
     """
+    # Set title
+    if title is None:
+        title = "Coefficient plot"
+    title_ext = ""
+    
     # Set errorbars (if given)
     if conf_int is None:
         yerr = None
-        title = ""
     else:
         yerr = np.abs(conf_int.T)
-        title = " w/ 95% conf. interval"
+        title_ext = " w/ 95% conf. interval"
         # title = " w/ {:.{a}%} conf. interval".format(
         #     (1-alpha), a=len(str(1-alpha))-4)
     
@@ -98,16 +115,18 @@ def plot_coefs(coefs, names, conf_int=None, cmap="default"):
             cmap = ["red" if inds[i] else "silver" for i in range(len(names))]
 
     
-    plt.figure()
+    fig = plt.figure()
     
     plt.errorbar(names, coefs, yerr=yerr, ecolor=cmap, ls="none")
     plt.scatter(names, coefs, c=cmap)
     plt.xticks(rotation=90)
     plt.ylabel("Coefficient "+r'$x_i$')
-    plt.title("Coefficent plot" + title)
+    plt.title(title + title_ext)
     plt.hlines(0, len(names), 0, colors="grey", linestyles="--")
     
     # plt.show()
+    
+    return fig
 
 
 
@@ -175,11 +194,13 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
     # Text box
     # corr, p_value = pearsonr(y_true, y_pred)
     corr = np.corrcoef(y_true, y_pred)[0,1]
+    # if np.isnan(corr):
+    #     corr = "-"
     sse = MSE(y_true, y_pred) * len(y_true)
     # r2 = R2(y_true, y_pred)
     text = "\n".join((
         r"Pearson's $\rho = %.4f$" % (corr),
-        r"Sum of Squared Errors = %.4f$" % (sse)))
+        r"Sum of Squared Errors = %.4f" % (sse)))
     bbox = dict(facecolor='wheat', alpha=0.5)
     
     fig, ax = plt.subplots()
@@ -194,13 +215,15 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
     ax.set_title(title)
 
     # plt.show()
+    
+    return fig
 
 
 
 # Stability analysis
 # ------------------
 
-def _coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
+def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
                random_state=None, scale_X=False,
                return_scaled_X=False, **split_options):
     """Returns dictionary with array of model coefficients at each iteration
@@ -233,10 +256,14 @@ def _coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
             if isinstance(random_state, int):
                 random_state += 1
         
-        # Fit estimator and store coefficients
+        # Fit estimator and store coefficients. Take first column in coef is
+        # 2-dimensional
         for estimator in estimators:
             estimator.fit(X_s, Y_s)
-            coefs[type(estimator).__name__][:,i] = estimator.coef_
+            if len(estimator.coef_.shape) == 2:
+                coefs[type(estimator).__name__][:,i] = estimator.coef_[:,0]
+            else:
+                coefs[type(estimator).__name__][:,i] = estimator.coef_
                 
     # Store coefficients as a dataframe
     inds = X.columns
@@ -304,6 +331,8 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
     
     plt.tight_layout()
     # plt.show()
+    
+    return fig
         
 
 def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
@@ -330,6 +359,12 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     
     # plt.show()
     
+    return fig
+
+
+
+# Model evaluation
+# ----------------
     
 def _create_control_feature(X, y, positive_control=True, sigma=0.,
                             random_state=None, name="control_variable"):
@@ -362,93 +397,124 @@ def _create_control_feature(X, y, positive_control=True, sigma=0.,
     return X2
         
     
-def _validate_models(estimators, X, y, scoring=None, n_repeats=5,
-                     random_state=None, control_params={},
-                     return_fitted_estimators=False):
-    """Validate list of models using analysis of added control feature
+def validate_models(estimators, X, y, scoring=None, n_repeats=5,
+                    random_state=None, return_fitted_estimators=False,
+                    control_params={}):
+    """Validate list of UNFITTED models using control feature
     
     Returns dataframe of diffences between the permuted scores and baseline
     score for the given estimator after fitting on the data with the added
     control feature.
-    Optionally returns dictionary of fitted estimators and baseline scores if
-    return_fitted_estimators=True
+    Optionally returns dictionary of estimators (after fitting with additional
+    control feature) and baseline scores if return_fitted_estimators=True
     """    
     if not hasattr(estimators, "__iter__"):
         estimators = [estimators]
-    if random_state is not None:
-        control_params["random_state"] = random_state
+    # if random_state is not None:
+    #     control_params["random_state"] = random_state
     
-    Xs = _create_control_feature(X=X, y=y, **control_params)
+    Xs = _create_control_feature(X=X, y=y, random_state=random_state,
+                                 **control_params)
     
     # Create arrays to store results
-    importances = np.zeros((n_repeats, len(estimators)))
+    scores = np.zeros((n_repeats, len(estimators)))
+    baseline_scores = np.zeros(len(estimators))
     models = []
-    baseline_scores = []
-    
-    from sklearn.inspection._permutation_importance import \
-        _calculate_permutation_scores
-    from sklearn.metrics import check_scoring
-    
+    estimators = estimators.copy()    # Break links to original list
+        
     for i, estimator in enumerate(estimators):
 
         # Fit estimator then fit baseline score for comparison
+        
+        # Get estimator name then calculate permutation importance
+        if type(estimator).__name__ == "KerasRegressor":
+            models.append("MLP")
+            
+            # Circumvent annoying Keras warnings
+            if hasattr(Xs, "iloc"):
+                Xs = Xs.copy().values
+            if hasattr(y, "iloc"):
+                y = y.copy().values
+                
+            estimator.set_params(input_dim=Xs.shape[1])
+        else:
+            models.append(type(estimator).__name__)
+
         estimator.fit(Xs, y)
         scorer = check_scoring(estimator, scoring=scoring)
-        baseline = scorer(estimator, Xs, y)
+        baseline_scores[i] = scorer(estimator, Xs, y)
         
-        importances[:,i] = \
+        scores[:,i] = \
             _calculate_permutation_scores(estimator=estimator,
                                           X=Xs, y=y,
                                           col_idx=Xs.shape[1]-1,
                                           random_state=random_state,
                                           n_repeats=n_repeats,
                                           scorer=scorer)
-        
-        # Get names of estimators and store baseline scores
-        if hasattr(type(estimator), "__name__"):
-            models.append(type(estimator).__name__)
-        else:
-            models.append("MLPRegressor")
-            
-        baseline_scores.append(baseline)
     
-        # Calculate difference in baseline and permuted scores
-        importances[:,i] = baseline_scores[i] - importances[:,i]
+        # # Calculate difference in baseline and permuted scores
+        # scores[:,i] = baseline_scores[i] - scores[:,i]
         
-    scores = pd.DataFrame(importances, index=np.arange(1, n_repeats+1),
+    scores = pd.DataFrame(scores, index=np.arange(1, n_repeats+1),
                           columns=models)
-    d = dict(estimator_name=models,
-             fitted_estimator=estimators,
-             baseline_scores=baseline_scores)
+    model_dict = dict(estimator_name=models,
+                      fitted_estimator=estimators)
     
     if return_fitted_estimators:
-        return scores, d
+        return scores, baseline_scores, model_dict
     else:
-        return scores
+        return scores, baseline_scores
+
+
+def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
+                     n_jobs=-2, random_state=None):
+    """Get permutation importances across all FITTED estimators
     
+    Returns dictionary of all permutations scores
+    """    
+    if not hasattr(estimators, "__iter__"):
+        estimators = [estimators]
+       
+    # Create dictionary to store results
+    importance_dict = {}
+    
+    for estimator in estimators:
         
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        # Get estimator name then calculate permutation importance
+        if type(estimator).__name__ == "KerasRegressor":
+            name = "MLP"
+            jobs = None    # n_jobs not supported for KerasRegressor
+            
+            # Circumvent annoying Keras warnings
+            if hasattr(X, "iloc"):
+                X = X.copy().values
+            if hasattr(y, "iloc"):
+                y = y.copy().values
+                
+        else:
+            name = type(estimator).__name__
+            jobs = n_jobs
+        
+        importance_dict[name] = \
+            permutation_importance(estimator=estimator, X=X, y=y,
+                                   scoring=scoring, n_repeats=n_repeats,
+                                   n_jobs=jobs, random_state=random_state)
+            
+    return importance_dict
 
-# def _get_boxplot_stats(boxplot, labels):
-#     """Get summary stats from boxplot
-#     """
-#     stats = []
-#     for i in range(len(labels)):
-#         d = dict(feature=labels,
-#                   lower_whisker=boxplot["whiskers"][i*2].get_xdata()[1],
-#                   q1=boxplot["boxes"][i].get_xdata()[1],
-#                   q2=boxplot["medians"][i].get_xdata()[1],
-#                   q3=boxplot["boxes"][i].get_xdata()[2],
-#                   upper_whisker=boxplot['whiskers'][(i*2)+1].get_xdata()[1])
-#         stats.append(d)
 
-#     return pd.DataFrame(stats)
+def _get_p_val(n, n_distribution):
+    """Return p value of entry n given a distribution n is expected to follow
+    """
+    i = (np.searchsorted(n_distribution, n)+1)/(len(n_distribution)+1)
+    if i > np.percentile(np.insert(n_distribution, 0, n), 50):
+        p = 1 - i
+    else:
+        p = i
+    lt = np.percentile(n_distribution, 2.5)
+    ut = np.percentile(n_distribution, 97.5)
+    
+    return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
+
+
+                 

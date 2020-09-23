@@ -7,6 +7,7 @@
 *.docx
 
 # Plots
+figures/
 plots/
 
 # Byte-compiled files
