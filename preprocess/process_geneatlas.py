@@ -18,8 +18,10 @@ path = os.path.join(directory, "results", trait)
 
 
 # Set sample size (for each file) and max number of files to read
-max_files = 4
-sample = 1000
+# max_files = 4
+sample = 5000
+r = np.random.RandomState(0)     # Set seed
+
 
 # Create list of results and variant info files
 ext = ".csv.gz"
@@ -47,9 +49,8 @@ for file in results_files:
         nrows = sum(1 for line in f)
         f.close()
     np.random.seed(0)     # Set seed
-    skip_rows = np.random.choice(np.arange(1, nrows),
-                                 size = nrows - sample - 1,
-                                 replace = False)
+    skip_rows = r.choice(np.arange(1, nrows), size=nrows-sample-1,
+                         replace = False)
     
     # Find chromosome number and load subset of data
     chr_no = file[file.find('.chr')+4:file.find(ext)]
@@ -144,7 +145,7 @@ num_cols = [col for col in scaled_data.select_dtypes(
 sc = StandardScaler()
 
 scaled_data[num_cols] = sc.fit_transform(scaled_data[num_cols])
-scaled_data["log_p_val"] = -np.log10(scaled_data["p_value"])
+# scaled_data["log_p_val"] = -np.log10(scaled_data["p_value"])
 
 
                 
@@ -153,13 +154,14 @@ scaled_data["log_p_val"] = -np.log10(scaled_data["p_value"])
 # Save dataframes or random sample of dataframes in csv format
 
 # Sampled data
+save_path = os.path.join(root_dir, "data")
 sample_merged = merged_data.sample(n = 500, random_state = 1010)
-sample_merged.to_csv(os.path.join(directory, "snp_raw.csv"))
+sample_merged.to_csv(os.path.join(save_path, "snp_raw.csv"))
 
 sample_processed = scaled_data.sample(n = 500, random_state = 1010)
-sample_processed.to_csv(os.path.join(directory, "snp_processed.csv"))
+sample_processed.to_csv(os.path.join(save_path, "snp_processed.csv"))
 print('Data saved!')
 
 # Full data
-# merged_data.to_csv(os.path.join(directory, "snp_raw.csv"))
-# scaled_data.to_csv(os.path.join(directory, "snp_processed.csv"))
+# merged_data.to_csv(os.path.join(save_path, "snp_raw.csv"))
+# scaled_data.to_csv(os.path.join(save_path, "snp_processed.csv"))
