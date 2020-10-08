@@ -25,6 +25,7 @@ def random_forest(X, y, param_grid, folds=5, n_jobs=-2, n_iter=10,
     # Print fit time
     t1 = time.time()
     if return_fit_time:
-        print("Running time : {:.2f} seconds".format(t1 - t0))
+        print("{} running time : {:.2f} seconds".format(
+            type(clf).__name__, (t1 - t0)))
         
     return clf_cv

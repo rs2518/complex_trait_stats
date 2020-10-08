@@ -60,19 +60,19 @@ def multilayer_perceptron(X, y, param_grid, folds=5, n_jobs=-2, n_iter=10,
     # param_grid["input_dim"] = [X.shape[1]]
 
     # Pass Keras model into scikit-learn wrapper then fit estimator
-    clf = KerasRegressor(build_fn=_create_mlp, input_dim=X.shape[1], epochs=5, batch_size=20,
-                         verbose=0)
+    clf = KerasRegressor(build_fn=_create_mlp, input_dim=X.shape[1], epochs=5,
+                         batch_size=20, verbose=0)
     clf_cv = RandomizedSearchCV(estimator=clf,
                                 n_iter=n_iter,
                                 param_distributions=param_grid,
                                 cv=folds, n_jobs=n_jobs,
                                 random_state=random_state,
                                 return_train_score=True)
-    clf_cv.fit(X, y)
+    clf_cv.fit(X.values, y.values)
     
     # Print fit time
     t1 = time.time()
     if return_fit_time:
-        print("Running time : {:.2f} seconds".format(t1 - t0))
+        print("MLP running time : {:.2f} seconds".format(t1 - t0))
         
     return clf_cv
