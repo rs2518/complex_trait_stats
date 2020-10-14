@@ -11,7 +11,7 @@ from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
 def _create_mlp(input_dim, hidden_layers=1, first_neurons=5, hidden_neurons=5,
                activation="relu", last_activation=None, dropout=0,
-               l1=None, l2=None, learning_rate=1e-03):
+               l1=None, l2=None, learning_rate=1e-02):
     """Multilayer Perceptron neural network generating function
     
     Defines MLP neural network architecture according to given arguments.
