@@ -19,7 +19,7 @@ path = os.path.join(directory, "results", trait)
 
 # Set sample size (for each file) and max number of files to read
 # max_files = 4
-sample = 5000
+sample = 1000
 r = np.random.RandomState(0)     # Set seed
 
 
@@ -43,14 +43,15 @@ counter = 0
 merged_data = None
 for file in results_files:
     
-    # Define rows to be skipped
     filepath = os.path.join(path, file)
-    with gzip.open(filepath, 'rb') as f:
-        nrows = sum(1 for line in f)
-        f.close()
-    np.random.seed(0)     # Set seed
-    skip_rows = r.choice(np.arange(1, nrows), size=nrows-sample-1,
-                         replace = False)
+    
+    # Define rows to be skipped
+    if sample is not None:
+        with gzip.open(filepath, 'rb') as f:
+            nrows = sum(1 for line in f)
+            f.close()
+        skip_rows = r.choice(np.arange(1, nrows), size=nrows-sample-1,
+                             replace = False)
     
     # Find chromosome number and load subset of data
     chr_no = file[file.find('.chr')+4:file.find(ext)]
@@ -77,6 +78,7 @@ for file in results_files:
                           how = 'inner')
             
             merged_data = pd.concat([merged_data, df], axis = 0)
+            break
     
     # Increment counter and break if loops exceeds max number of files
     counter = counter + 1
