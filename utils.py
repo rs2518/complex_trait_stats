@@ -41,6 +41,7 @@ def load_dataframe(file):
     data = pd.read_csv(filepath, index_col=1)
     
     data.drop(data.columns[0], axis=1, inplace=True)
+    data = _remove_zero_pval(data)
     
     return _set_categories(data)
 
@@ -55,10 +56,20 @@ def _set_categories(dataframe):
     return dataframe
 
 
-def process_category(data):
-    """Convert categorical into binary predictors.
+def _remove_zero_pval(dataframe):
+    """Add constant to zero p_values
     
-    Preprocess data for sklearn models that require data to be numerical
+    Prevents error during log transformations (where p_value = 0) by adding
+    half the minimum p_value
+    """
+    min_p = min(dataframe["p_value"][dataframe["p_value"] != 0])
+    dataframe["p_value"].replace(0, min_p/2, inplace=True)
+    
+    return dataframe
+
+
+def binarise_category(data):
+    """Convert categorical into binary predictors
     """
     # Binarise all categorical variables
     processed_data = pd.get_dummies(data)
@@ -68,6 +79,26 @@ def process_category(data):
     cols.append(cols.pop(cols.index("p_value")))
     
     return processed_data[cols]
+
+
+def scale_numeric(data):
+    """Apply StandardScaler to numeric predictors
+    """
+    scaled_data = data.copy()
+    
+    # Scale with Standard Scaler
+    sc = StandardScaler()
+    cols = scaled_data.drop(["p_value"], axis=1).select_dtypes(
+        exclude=["category", "object"]).columns
+    scaled_data[cols] = sc.fit_transform(data[cols])
+    
+    return scaled_data
+
+
+def process_data(data):
+    """Scale numeric predictors and binarise categorical predictors
+    """    
+    return binarise_category(scale_numeric(data))
 
 
 
@@ -402,7 +433,7 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
                     control_params={}):
     """Validate list of UNFITTED models using control feature
     
-    Returns dataframe of diffences between the permuted scores and baseline
+    Returns dataframe of differences between the permuted scores and baseline
     score for the given estimator after fitting on the data with the added
     control feature.
     Optionally returns dictionary of estimators (after fitting with additional
@@ -515,6 +546,3 @@ def _get_p_val(n, n_distribution):
     ut = np.percentile(n_distribution, 97.5)
     
     return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
-
-
-                 

@@ -4,7 +4,6 @@ import gzip
 import numpy as np
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler
 
 
 # Load data
@@ -131,25 +130,6 @@ merged_data = merged_data[cols]
 # merged_data["log_p_val"] = -np.log10(merged_data["p_value"])
 
 
-
-# Preprocess data
-# ---------------
-# The data contains a mixture of continuous and categorical predictors.
-# The continuous predictors are scaled using StandardScaler.
-# P-values are left unscaled for now. Categorical variables are handled
-# according to the model run
-
-# Continuous columns
-scaled_data = merged_data.copy()
-num_cols = [col for col in scaled_data.select_dtypes(
-        exclude=["category", "object"]).columns if col != "p_value"]
-
-sc = StandardScaler()
-
-scaled_data[num_cols] = sc.fit_transform(scaled_data[num_cols])
-# scaled_data["log_p_val"] = -np.log10(scaled_data["p_value"])
-
-
                 
 # Save dataframe
 # --------------
@@ -160,10 +140,7 @@ save_path = os.path.join(root_dir, "data")
 sample_merged = merged_data.sample(n = 500, random_state = 1010)
 sample_merged.to_csv(os.path.join(save_path, "snp_raw.csv"))
 
-sample_processed = scaled_data.sample(n = 500, random_state = 1010)
-sample_processed.to_csv(os.path.join(save_path, "snp_processed.csv"))
-print('Data saved!')
 
 # Full data
 # merged_data.to_csv(os.path.join(save_path, "snp_raw.csv"))
-# scaled_data.to_csv(os.path.join(save_path, "snp_processed.csv"))
+# merged_data.to_csv(os.path.join(save_path, "snp_raw_allchr.csv"))

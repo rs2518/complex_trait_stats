@@ -13,7 +13,7 @@ import os
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 # import seaborn as sns
 
 from sklearn.model_selection import train_test_split
@@ -32,21 +32,25 @@ from complex_trait_stats.models._penalised_regression import (lasso_regression,
                                                               enet_regression)
     
 from complex_trait_stats.utils import (ROOT, RAW_DATA, load_dataframe,
-                                       process_category)
+                                       process_data)
 from complex_trait_stats.utils import (coef_dict,
                                        plot_stability,
                                        plot_mean_coef_heatmap,
                                        validate_models,
-                                       perm_importances)
-from complex_trait_stats.utils import metrics, plot_coefs, plot_true_vs_pred
+                                       perm_importances,
+                                       plot_coefs,
+                                       metrics,
+                                       plot_true_vs_pred,
+                                       cv_table)
 
 
 
 # Define directories (and create if non-existent) to save plots
-stab_figpath = os.path.join(ROOT, "figures", "stability")
-eval_figpath = os.path.join(ROOT, "figures", "evaluation")
-eda_figpath = os.path.join(ROOT, "figures", "exploratory")
-for folder in [stab_figpath, eval_figpath, eda_figpath]:
+fig_dir = os.path.join(ROOT, "figures")
+stab_figpath = os.path.join(fig_dir, "stability")
+eval_figpath = os.path.join(fig_dir, "evaluation")
+eda_figpath = os.path.join(fig_dir, "exploratory")
+for folder in [fig_dir, stab_figpath, eval_figpath, eda_figpath]:
     if not os.path.exists(folder):
         os.mkdir(folder)
         print("Created '{}' directory!".format(folder[folder.rfind("/")+1:]))
@@ -54,7 +58,8 @@ for folder in [stab_figpath, eval_figpath, eda_figpath]:
 
 # Load data and add column of ones for intercept
 df = load_dataframe(RAW_DATA)
-data = process_category(df)
+# df = load_dataframe("snp_raw_allchr1000.csv")
+data = process_data(df)
 
 X = data.drop(['p_value'], axis=1)
 Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
@@ -65,17 +70,21 @@ X_train, X_test, Y_train, Y_test = \
 
 y_train = Y_train["p_value"]
 y_test = Y_test["p_value"]
-seed = 1010
 
 
 
 # =============================================================================
 # Train models
 # =============================================================================
+# Set seed and n_jobs. Print fit times
+seed = 1010
+show_time = True
+n_jobs = -2
+
 
 # Linear Regression
 # -----------------
-lr = linear_regression(X_train, y_train)
+lr = linear_regression(X_train, y_train, return_fit_time=show_time)
 
 
 # Penalised Regression (LASSO, Ridge, Elastic-Net)
@@ -84,19 +93,24 @@ en_params = dict(alpha=np.logspace(-5, 5, 11),
                  l1_ratio=np.linspace(0, 1, 6))
 pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
 
-lasso = lasso_regression(X_train, y_train, param_grid=pr_params,
-                         random_state=seed)
+lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
+                         n_jobs=n_jobs, random_state=seed,
+                         return_fit_time=show_time)
 ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
-                         random_state=seed)
+                         n_jobs=n_jobs, random_state=seed,
+                         return_fit_time=show_time)
 enet = enet_regression(X_train, y_train, param_grid=en_params,
-                       random_state=seed)
+                       n_jobs=n_jobs, random_state=seed,
+                       return_fit_time=show_time)
+# ElasticNet takes VERY long
 
 
 # PLS Regression
 # --------------
 pls_params = dict(n_components=np.arange(1, X.shape[1]+1))
 
-pls = pls_regression(X_train, y_train, param_grid=pls_params)
+pls = pls_regression(X_train, y_train, param_grid=pls_params,
+                     n_jobs=n_jobs, return_fit_time=show_time)
 
 
 # Random Forest
@@ -109,25 +123,24 @@ rf_params = dict(n_estimators=[100, 500, 1000],
                  bootstrap=[True, False])    # 216 possible combinations
 
 rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=5,
-                   random_state=seed)
+                   random_state=seed, return_fit_time=show_time)
 
 
 # Multilayer Perceptron
 # ---------------------
-mlp_params = dict(hidden_layers=[2, 4, 8],
-                  first_neurons=[25, 50, 100],
-                  hidden_neurons=[5, 10, 25, 50],
-                  activation=["relu", "softplus"],
+mlp_params = dict(hidden_layers=[1, 2, 3],
+                  first_neurons=[1, 10, 50],
+                  hidden_neurons=[1, 10, 50],
+                  activation=["relu"],
                   last_activation=[None],
-                  dropout=[0, 0.1, 0.2],
-                  l1=[None, 1e-02, 1e-04],
-                  l2=[None, 1e-02, 1e-04],
-                  learning_rate=[1e-01],
-                  epochs=[10, 50],
-                  batch_size=[20, 80])    # 5832 possible combinations
+                  dropout=[0.1, 0.3],
+                  l1=[1e-04],
+                  l2=[1e-04],
+                  epochs=[50],
+                  batch_size=[50, 100])    # 108 possible combinations
 
 mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=5,
-                            random_state=seed)
+                            random_state=seed, return_fit_time=show_time)
 
 
 # Get best model hyperparameters from tuned models
@@ -162,12 +175,14 @@ unfitted_models = [LinearRegression(),
 # Stability analysis
 # =============================================================================
 
+# Feature stability
+# -----------------
 # Produce stability plots for linear models
-random_state = 10
+fs_seed = 10
 coef_dict = coef_dict(estimators=unfitted_models[:-2],
                       X=X_train, Y=y_train,
                       n_iters=20, bootstrap=True,
-                      random_state=random_state)
+                      random_state=fs_seed)
 
 for model, coef in coef_dict.items():
     fig = plot_stability(coef, title=model)
@@ -187,21 +202,31 @@ fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
 # X_val, X_testing, Y_val, Y_testing = \
 #     train_test_split(X_test, Y_test, test_size=0.8, random_state=1010)
 
+n_repeats = 20
+mv_seed = 1
+
 pos_importances, pos_base = \
     validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                    n_repeats=20, random_state=1)
+                    n_repeats=n_repeats, random_state=mv_seed)
  
 
 # Negative control model validation
 neg_importances, neg_base = \
     validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                    n_repeats=20, random_state=1,
+                    n_repeats=n_repeats, random_state=mv_seed,
                     control_params={"positive_control":False})
 
 
 # Permutation importances for each feature
-perms = perm_importances(fitted_models, X_test, y_test, n_repeats=20,
-                         random_state=1)
+perms = perm_importances(fitted_models, X_test, y_test, n_repeats=n_repeats,
+                         random_state=mv_seed)
+
+
+# Hyperparameter stability
+# ------------------------
+# # Plot ranked results of cross-validation as a table
+# for model_cv in [lasso, ridge, enet, pls, rf, mlp]:
+#     table = cv_table(model_cv.cv_results_, ordered="ascending")
 
 
 
