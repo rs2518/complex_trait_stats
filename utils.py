@@ -197,7 +197,8 @@ def cv_table(cv_results_, ordered=None):
     respective model parameters from cv_results_. Can sort results according
     to rank_test_score by setting sort="ascending" or sort="descending".
     """    
-    dict_keys = ["rank_test_score", "mean_test_score", "std_test_score"]
+    dict_keys = ["rank_test_score", "mean_test_score", "std_test_score",
+                 "mean_train_score", "std_train_score"]
     dict_keys += [key for key in cv_results_.keys() if "param_" in key]
     d = {key:cv_results_[key] for key in dict_keys}
     
