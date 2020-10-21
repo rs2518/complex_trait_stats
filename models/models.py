@@ -63,14 +63,16 @@ df = load_dataframe(RAW_DATA)
 data = process_data(df)
 
 X = data.drop(['p_value'], axis=1)
-Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
-Y.columns = ["p_value", "-log10_p"]
-X_train, X_test, Y_train, Y_test = \
-    train_test_split(X, Y, test_size=0.3, random_state=1010)
+# Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+# Y.columns = ["p_value", "-log10_p"]
+# X_train, X_test, Y_train, Y_test = \
+#     train_test_split(X, Y, test_size=0.3, random_state=1010)
 
 
-y_train = Y_train["p_value"]
-y_test = Y_test["p_value"]
+y = -np.log10(data["p_value"])
+X_train, X_test, y_train, y_test = \
+    train_test_split(X, y, test_size=0.3, random_state=1010)
+
 
 
 
@@ -90,20 +92,20 @@ lr = linear_regression(X_train, y_train, return_fit_time=show_time)
 
 # Penalised Regression (LASSO, Ridge, Elastic-Net)
 # ------------------------------------------------
-en_params = dict(alpha=np.logspace(-5, 5, 11),
+en_params = dict(alpha=np.logspace(-5, 2, 8),
                  l1_ratio=np.linspace(0, 1, 6))
 pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
 
 lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
                          n_jobs=n_jobs, random_state=seed,
-                         return_fit_time=show_time)
+                         return_fit_time=show_time, warm_start=True)
 ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
                          n_jobs=n_jobs, random_state=seed,
                          return_fit_time=show_time)
 enet = enet_regression(X_train, y_train, param_grid=en_params,
                        n_jobs=n_jobs, random_state=seed,
-                       return_fit_time=show_time)
-# ElasticNet takes VERY long
+                       return_fit_time=show_time, warm_start=True)
+# ElasticNet takes VERY long. Using warm_start
 
 
 # PLS Regression
@@ -116,32 +118,57 @@ pls = pls_regression(X_train, y_train, param_grid=pls_params,
 
 # Random Forest
 # -------------
-rf_params = dict(n_estimators=[100, 500, 1000],
-                 max_features=["auto", "sqrt"],
-                 max_depth=[5, 10, 50],
-                 min_samples_split=[0.15, 0.25, 0.35],
-                 min_samples_leaf=[0.01, 0.1],
-                 bootstrap=[True, False])    # 216 possible combinations
+rf_params = dict(n_estimators=[10, 100, 250],
+                  max_features=["auto", "sqrt"],
+                  max_depth=[10, 25, 50],
+                  min_samples_split=[0.001, 0.01, 0.1],
+                  min_samples_leaf=[0.001, 0.01, 0.1])
+# 162 possible combinations. Test ~ 25% of hyperparameter space
 
 rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=5,
-                   random_state=seed, return_fit_time=show_time)
+                   n_jobs=n_jobs, random_state=seed,
+                   return_fit_time=show_time, warm_start=True)
 
 
 # Multilayer Perceptron
 # ---------------------
-mlp_params = dict(hidden_layers=[1, 2, 3],
-                  first_neurons=[1, 10, 50],
-                  hidden_neurons=[1, 10, 50],
-                  activation=["relu"],
-                  last_activation=[None],
-                  dropout=[0.1, 0.3],
-                  l1=[1e-04],
-                  l2=[1e-04],
-                  epochs=[50],
-                  batch_size=[50, 100])    # 108 possible combinations
+one_layer_params = dict(hidden_layers=[1],
+                        first_neurons=[1, 10, 25],
+                        hidden_neurons=[None],
+                        activation=["relu"],
+                        last_activation=[None],
+                        dropout=[0.01, 0.1],
+                        l1=[1e-04],
+                        l2=[1e-04],
+                        epochs=[20],
+                        batch_size=[100])    # Single hidden layer
+
+multi_layer_params = dict(hidden_layers=[2, 3],
+                          first_neurons=[1, 10, 25],
+                          hidden_neurons=[1, 10, 25],
+                          activation=["relu"],
+                          last_activation=[None],
+                          dropout=[0.01, 0.1],
+                          l1=[1e-04],
+                          l2=[1e-04],
+                          epochs=[20],
+                          batch_size=[100])    # Multiple hidden layers
+
+mlp_params = [one_layer_params, multi_layer_params]
 
 mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=5,
-                            random_state=seed, return_fit_time=show_time)
+                            n_jobs=n_jobs, random_state=seed,
+                            return_fit_time=show_time)
+
+
+# Get cross-validation results
+sort = "ascending"
+lasso_cv = cv_table(lasso.cv_results_, ordered=sort)
+ridge_cv = cv_table(ridge.cv_results_, ordered=sort)
+enet_cv = cv_table(enet.cv_results_, ordered=sort)
+pls_cv = cv_table(pls.cv_results_, ordered=sort)
+rf_cv = cv_table(rf.cv_results_, ordered=sort)
+mlp_cv = cv_table(mlp.cv_results_, ordered=sort)
 
 
 # Get best model hyperparameters from tuned models
