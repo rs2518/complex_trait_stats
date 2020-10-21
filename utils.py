@@ -155,6 +155,7 @@ def plot_coefs(coefs, names, title=None, conf_int=None, cmap="default"):
     plt.title(title + title_ext)
     plt.hlines(0, len(names), 0, colors="grey", linestyles="--")
     
+    plt.tight_layout()
     # plt.show()
     
     return fig
@@ -245,6 +246,7 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
             fontsize=12, bbox=bbox)
     ax.set_title(title)
 
+    plt.tight_layout()
     # plt.show()
     
     return fig
@@ -255,8 +257,8 @@ def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
 # ------------------
 
 def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
-               random_state=None, scale_X=False,
-               return_scaled_X=False, **split_options):
+              random_state=None, scale_X=False,
+              return_scaled_X=False, **split_options):
     """Returns dictionary with array of model coefficients at each iteration
     for a given list of estiamtors
     """
@@ -309,7 +311,7 @@ def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
 
 
 def _mean_summary(coef_dict, return_std=False):
-    """Return means and standard deviations from _coef_dict dictionary
+    """Return means and standard deviations from coef_dict dictionary
     """
     n_models = len(coef_dict.keys())
     features = coef_dict[list(coef_dict.keys())[0]].index
@@ -388,6 +390,7 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     ax.set_xlabel("Model")
     ax.set_ylabel("Features")
     
+    plt.tight_layout()
     # plt.show()
     
     return fig
