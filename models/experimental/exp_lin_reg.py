@@ -95,3 +95,46 @@ for key in models.keys():
                          "$y_{predicted}$ (%s)" % (col)))
         ind = y.columns.to_list().index(col)
         plot_true_vs_pred(y_test[:,ind], y_pred, title=title)
+
+
+
+# =============================================================================
+# Further testing
+# =============================================================================
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+
+from complex_trait_stats.models._linear_regression import linear_regression
+from complex_trait_stats.utils import (process_data, RAW_DATA, load_dataframe,
+                                       plot_true_vs_pred)
+
+
+
+# Load data and add column of ones for intercept
+# df = load_dataframe(RAW_DATA)
+df = load_dataframe("snp_raw_allchr1000.csv")
+data = process_data(df)
+
+X = data.drop(['p_value'], axis=1)
+Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+Y.columns = ["p_value", "-log10_p"]
+X_train, X_test, Y_train, Y_test = \
+    train_test_split(X, Y, test_size=0.3, random_state=1010)
+
+
+# y_train = Y_train["p_value"]
+# y_test = Y_test["p_value"]
+y_train = Y_train["-log10_p"]
+y_test = Y_test["-log10_p"]
+
+
+
+show_time = True
+
+lr = linear_regression(X_train, y_train, return_fit_time=show_time)
+
+print(lr.coef_)
+fig = plot_true_vs_pred(y_test, lr.predict(X_test))

@@ -104,3 +104,91 @@ for clf in classifiers.keys():
         title = clf+" (%s)" % (col)
         ind = y.columns.to_list().index(col)
         plot_true_vs_pred(y_test[:,ind], y_pred, title=title)
+
+
+
+# =============================================================================
+# Hyperparameter testing
+# =============================================================================
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+
+from complex_trait_stats.models._penalised_regression import (lasso_regression,
+                                                              ridge_regression,
+                                                              enet_regression)
+from complex_trait_stats.utils import (process_data, RAW_DATA, load_dataframe,
+                                       plot_true_vs_pred, cv_table)
+
+
+
+# Load data and add column of ones for intercept
+# df = load_dataframe(RAW_DATA)
+df = load_dataframe("snp_raw_allchr1000.csv")
+data = process_data(df)
+
+X = data.drop(['p_value'], axis=1)
+Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+Y.columns = ["p_value", "-log10_p"]
+X_train, X_test, Y_train, Y_test = \
+    train_test_split(X, Y, test_size=0.3, random_state=1010)
+
+
+# y_train = Y_train["p_value"]
+# y_test = Y_test["p_value"]
+y_train = Y_train["-log10_p"]
+y_test = Y_test["-log10_p"]
+
+
+
+seed = 1
+n_jobs= -2
+show_time = True
+
+en_params = dict(alpha=np.logspace(-5, 2, 8),
+                 l1_ratio=np.linspace(0, 1, 6))
+pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
+
+# -----------------
+# lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
+#                          n_jobs=n_jobs, random_state=seed,
+#                          return_fit_time=show_time)
+
+lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
+                         n_jobs=n_jobs, random_state=seed,
+                         return_fit_time=show_time,
+                         warm_start=True)
+
+# print(lasso.cv_results_)
+fig = plot_true_vs_pred(y_test, lasso.best_estimator_.predict(X_test))
+lasso_tab = cv_table(lasso.cv_results_, ordered="ascending")
+
+# -----------------
+ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
+                         n_jobs=n_jobs, random_state=seed,
+                         return_fit_time=show_time)
+
+# print(ridge.cv_results_)
+fig = plot_true_vs_pred(y_test, ridge.best_estimator_.predict(X_test))
+ridge_tab = cv_table(ridge.cv_results_, ordered="ascending")
+
+# -----------------
+# enet = enet_regression(X_train, y_train, param_grid=en_params,
+#                        n_jobs=n_jobs, random_state=seed,
+#                        return_fit_time=show_time)
+
+enet = enet_regression(X_train, y_train, param_grid=en_params,
+                       n_jobs=n_jobs, random_state=seed,
+                       return_fit_time=show_time,
+                       warm_start=True)
+# Warm start reduces running time but gives different results (could be from
+# instability of parameter estimates)
+ 
+
+# print(enet.cv_results_)
+fig = plot_true_vs_pred(y_test, enet.best_estimator_.predict(X_test))
+enet_tab = cv_table(enet.cv_results_, ordered="ascending")
+
+# NOTE: Ridge favours larger alpha but LASSO favours lower alpha

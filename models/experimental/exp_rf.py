@@ -25,6 +25,12 @@ from complex_trait_stats.utils import (load_dataframe, process_category,
 
 import time
 
+
+
+# =============================================================================
+# Initial model testing
+# =============================================================================
+
 # Load data and add column of ones for intercept
 df = load_dataframe(RAW_DATA)
 data = process_category(df)
@@ -138,3 +144,91 @@ for key in models.keys():
                      "$y_{predicted}$ (%s)" % (col)))
     ind = y.columns.to_list().index(col)
     plot_true_vs_pred(y_test[:,ind], y_pred, title=title)
+    
+
+
+# =============================================================================
+# Hyperparameter testing
+# =============================================================================
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+
+from complex_trait_stats.models._random_forest import random_forest
+from complex_trait_stats.utils import (process_data, RAW_DATA, load_dataframe,
+                                       plot_true_vs_pred, cv_table)
+
+
+
+# Load data and add column of ones for intercept
+# df = load_dataframe(RAW_DATA)
+df = load_dataframe("snp_raw_allchr1000.csv")
+data = process_data(df)
+
+X = data.drop(['p_value'], axis=1)
+Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+Y.columns = ["p_value", "-log10_p"]
+X_train, X_test, Y_train, Y_test = \
+    train_test_split(X, Y, test_size=0.3, random_state=1010)
+
+
+y_train = Y_train["p_value"]
+y_test = Y_test["p_value"]
+
+
+seed = 1
+show_time = True
+
+rf_params = dict(n_estimators=[10, 100, 1000],
+                 max_features=["auto", "sqrt"],
+                 max_depth=[100],
+                 min_samples_split=[2, 0.01, 0.1],
+                 min_samples_leaf=[1, 0.01, 0.1],
+                 bootstrap=[True])
+
+rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=27,
+                   random_state=seed, return_fit_time=show_time)
+
+print(rf.cv_results_)
+fig = plot_true_vs_pred(y_test, rf.best_estimator_.predict(X_test))
+cv_tab = cv_table(rf.cv_results_, ordered="ascending")
+
+
+# -------------
+# NOTE: small min_samples_split/min_samples_leaf may lead to overfitting for
+# log transformed target (high training score, low testing score)
+
+y_train = Y_train["-log10_p"]
+y_test = Y_test["-log10_p"]
+
+
+seed = 1
+show_time = True
+
+# rf_params = dict(n_estimators=[10],
+#                  max_features=["auto"],
+#                  max_depth=[10],
+#                  min_samples_split=[0.01],
+#                  min_samples_leaf=[0.01],
+#                  bootstrap=[True])
+
+rf_params = dict(n_estimators=[250],
+                  max_features=["auto"],
+                  max_depth=[50],
+                  min_samples_split=[0.001],
+                  min_samples_leaf=[0.001])
+
+# rf_params = dict(n_estimators=[10, 100, 1000],
+#                   max_features=["auto", "sqrt"],
+#                   max_depth=[10, 25, 50],
+#                   min_samples_split=[0.001, 0.01, 0.1],
+#                   min_samples_leaf=[0.001, 0.01, 0.1])
+
+rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=1,
+                   random_state=seed, return_fit_time=show_time, warm_start=True)
+
+print(rf.cv_results_)
+fig = plot_true_vs_pred(y_test, rf.best_estimator_.predict(X_test))
+cv_tab = cv_table(rf.cv_results_, ordered="ascending")

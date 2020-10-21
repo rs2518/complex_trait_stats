@@ -135,3 +135,95 @@ scores.index = index
 t1 = time.time()
 print("Running time : {:.2f} seconds".format(t1 - t0))
 # ~900 seconds
+
+
+
+# =============================================================================
+# Hyperparameter testing
+# =============================================================================
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+
+from complex_trait_stats.models._neural_network import multilayer_perceptron
+from complex_trait_stats.utils import (process_data, RAW_DATA, load_dataframe,
+                                       plot_true_vs_pred, cv_table)
+
+
+
+# Load data and add column of ones for intercept
+# df = load_dataframe(RAW_DATA)
+df = load_dataframe("snp_raw_allchr1000.csv")
+data = process_data(df)
+
+X = data.drop(['p_value'], axis=1)
+Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
+Y.columns = ["p_value", "-log10_p"]
+X_train, X_test, Y_train, Y_test = \
+    train_test_split(X, Y, test_size=0.3, random_state=1010)
+
+
+# y_train = Y_train["p_value"]
+# y_test = Y_test["p_value"]
+y_train = Y_train["-log10_p"]
+y_test = Y_test["-log10_p"]
+
+
+
+seed = 1
+show_time = True
+
+mlp_params = dict(hidden_layers=[1, 2],
+                  first_neurons=[10, 25, 100],
+                  hidden_neurons=[5, 10, 50],
+                  activation=["relu"],
+                  last_activation=[None],
+                  dropout=[0.01, 0.1, 0.3],
+                  l1=[0.1, 0.0001],
+                  l2=[0.1, 0.0001],
+                  epochs=[50],
+                  batch_size=[50])
+
+# mlp_params = dict(hidden_layers=[1],
+#                   first_neurons=[10],
+#                   hidden_neurons=[None],
+#                   activation=["relu"],
+#                   last_activation=[None],
+#                   dropout=[0.1, 0.2, 0.3],
+#                   l1=[1e-04],
+#                   l2=[1e-04],
+#                   epochs=[50],
+#                   batch_size=[20])
+
+mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=25,
+                            random_state=seed, return_fit_time=show_time) 
+
+print(mlp.cv_results_)
+print(mlp.best_estimator_.predict(X_test.values))
+print(mlp.best_estimator_.predict(X_test.values) - y_test.values)
+fig = plot_true_vs_pred(y_test, mlp.best_estimator_.predict(X_test.values))
+cv_tab = cv_table(mlp.cv_results_, ordered="ascending")
+
+
+
+mlp_params = dict(hidden_layers=[2],
+                  first_neurons=[15],
+                  hidden_neurons=[7],
+                  activation=["relu"],
+                  last_activation=[None],
+                  dropout=[0.01],
+                  l1=[0.00001],
+                  l2=[0.00001],
+                  epochs=[20],
+                  batch_size=[100])
+
+mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=1,
+                            random_state=1, return_fit_time=show_time) 
+
+print(mlp.cv_results_)
+# print(mlp.best_estimator_.predict(X_test.values))
+# print(mlp.best_estimator_.predict(X_test.values) - y_test.values)
+fig = plot_true_vs_pred(y_test, mlp.best_estimator_.predict(X_test.values))
+cv_tab = cv_table(mlp.cv_results_, ordered="ascending")
