@@ -15,6 +15,7 @@ from sklearn.metrics import r2_score as R2
 # from scipy.stats import pearsonr
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from scipy.stats import zscore
 
 from sklearn.inspection._permutation_importance import \
     _calculate_permutation_scores
@@ -213,32 +214,63 @@ def cv_table(cv_results_, ordered=None):
 
 
 
-def plot_true_vs_pred(y_true, y_pred, title=None, marker=".", markercolor=None,
-                      edgecolor="w", ls="--", linecolor="red", **kwargs):
+def get_outlier_inds(a, threshold=8):
+    """Return indices of a where the abs(z-score) >= threshold
+    """
+    z = zscore(a)
+    return np.arange(len(z))[np.abs(z) >= threshold]
+
+
+
+def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=True,
+                      marker=".", markercolor=None, edgecolor="w",
+                      ls="--", linecolor="red", **kwargs):
     """Plot true y values against predicted y values
     """
     if title is None:
         title = "True vs. Predicted"
-    
-    # Set width of marker edge and line endpoints for better visuals
-    lw = 1/(len(y_true)**0.25)
-    lim = [min(y_true), max(y_true)]
-    
+        
+    # Remove outliers
+    yt = np.array(y_true)
+    yp = np.array(y_pred)
+    out_text = ""
+    if rm_outliers:
+        ind = get_outlier_inds(yt)
+        yt = np.delete(yt, ind)
+        yp = np.delete(yp, ind)
+        
+        # Metrics excluding outliers
+        out_corr = np.corrcoef(yt, yp)[0,1]
+        out_sse = MSE(yt, yp) * len(yt)
+        out_text = "\n" + "\n".join((
+            r"$\rho\ (excl. outliers) = %.4f$" % (out_corr),
+            r"SSE (excl. outliers) = %.2f" % (out_sse)))
+        
+        if len(ind) > 0:
+            title = title + " (%d outliers excluded)" % (len(ind))
+        
+        
     # Text box
     # corr, p_value = pearsonr(y_true, y_pred)
-    corr = np.corrcoef(y_true, y_pred)[0,1]
+    # r2 = R2(y_true, y_pred)
     # if np.isnan(corr):
     #     corr = "-"
+    corr = np.corrcoef(y_true, y_pred)[0,1]
     sse = MSE(y_true, y_pred) * len(y_true)
-    # r2 = R2(y_true, y_pred)
     text = "\n".join((
-        r"Pearson's $\rho = %.4f$" % (corr),
-        r"Sum of Squared Errors = %.4f" % (sse)))
+        r"$\rho = %.4f$" % (corr),
+        r"SSE = %.2f" % (sse)))
+    text = text + out_text
     bbox = dict(facecolor='wheat', alpha=0.5)
+    
+    
+    # Set width of marker edge and line endpoints for better visuals
+    lw = 1/(len(yt)**0.25)
+    lim = [min(yt), max(yt)]
     
     fig, ax = plt.subplots()
     
-    ax.scatter(y_true, y_pred, marker=".", linewidth=lw, edgecolor="w",
+    ax.scatter(yt, yp, marker=".", linewidth=lw, edgecolor="w",
                **kwargs)
     ax.plot(lim, lim, c=linecolor)
     ax.set_xlabel("True")
