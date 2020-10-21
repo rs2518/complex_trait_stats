@@ -539,15 +539,16 @@ def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
     return importance_dict
 
 
-def _get_p_val(n, n_distribution):
-    """Return p value of entry n given a distribution n is expected to follow
+def get_p(n, n_distribution, alpha=0.05):
+    """Return p value of entry n given a distribution with sig. level alpha
     """
+    sl = (alpha/2)*100
     i = (np.searchsorted(n_distribution, n)+1)/(len(n_distribution)+1)
     if i > np.percentile(np.insert(n_distribution, 0, n), 50):
         p = 1 - i
     else:
         p = i
-    lt = np.percentile(n_distribution, 2.5)
-    ut = np.percentile(n_distribution, 97.5)
+    lt = np.percentile(n_distribution, sl)
+    ut = np.percentile(n_distribution, 100-sl)
     
     return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
