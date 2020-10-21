@@ -198,23 +198,19 @@ fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
 
 
 
-# Positive control model validation
+# Positive control and negative control model validation
 # X_val, X_testing, Y_val, Y_testing = \
 #     train_test_split(X_test, Y_test, test_size=0.8, random_state=1010)
 
-n_repeats = 20
+n_repeats = 10
 mv_seed = 1
 
-pos_importances, pos_base = \
-    validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                    n_repeats=n_repeats, random_state=mv_seed)
+pos_ctrl = validate_models(estimators=unfitted_models, X=X_test, y=y_test,
+                           n_repeats=n_repeats, random_state=mv_seed)
  
-
-# Negative control model validation
-neg_importances, neg_base = \
-    validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                    n_repeats=n_repeats, random_state=mv_seed,
-                    control_params={"positive_control":False})
+neg_ctrl = validate_models(estimators=unfitted_models, X=X_test, y=y_test,
+                           n_repeats=n_repeats, random_state=mv_seed,
+                           control_params={"positive_control":False})
 
 
 # Permutation importances for each feature
@@ -235,7 +231,7 @@ perms = perm_importances(fitted_models, X_test, y_test, n_repeats=n_repeats,
 # =============================================================================
 
 # Get model predictions
-predictions = {key:model.predict(X_test).flatten()
+predictions = {key:model.predict(X_test).ravel()
                for (key, model) in zip(perms.keys(), fitted_models)}
 
 

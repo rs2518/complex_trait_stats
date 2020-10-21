@@ -496,9 +496,10 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
                       fitted_estimator=estimators)
     
     if return_fitted_estimators:
-        return scores, baseline_scores, model_dict
+        return Bunch(scores=scores, baseline_scores=baseline_scores,
+                     model_dict=model_dict)
     else:
-        return scores, baseline_scores
+        return Bunch(scores=scores, baseline_scores=baseline_scores)
 
 
 def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
