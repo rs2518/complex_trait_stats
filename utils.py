@@ -399,6 +399,30 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
 
 
 
+def coef_stats_dict(coef_dict, alpha=0.05):
+    """Return dictionary of statistics from coef_dict
+    """    
+    # n_models = len(coef_dict.keys())
+    features = coef_dict[list(coef_dict.keys())[0]].index
+    sl = (alpha/2)*100
+    
+    coef_stats = {}
+    for key in coef_dict.keys():
+        # Store coefficient stats
+        d = {}
+        d["Mean"] = coef_dict[key].mean(axis=1)
+        d["Standard Deviation"] = coef_dict[key].std(axis=1)
+        d["Median"] = np.percentile(coef_dict[key], 0.5, axis=1)
+        d["Lower Quartile"] = np.percentile(coef_dict[key], sl, axis=1)
+        d["Upper Quartile"] = np.percentile(coef_dict[key], 100-sl, axis=1)
+        stats = pd.DataFrame(d, index=features)
+        
+        coef_stats[key] = stats
+    
+    return coef_stats
+
+
+
 # Model evaluation
 # ----------------
     

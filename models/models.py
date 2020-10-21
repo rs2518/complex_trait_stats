@@ -34,6 +34,7 @@ from complex_trait_stats.models._penalised_regression import (lasso_regression,
 from complex_trait_stats.utils import (ROOT, RAW_DATA, load_dataframe,
                                        process_data)
 from complex_trait_stats.utils import (coef_dict,
+                                       coef_stats_dict,
                                        plot_stability,
                                        plot_mean_coef_heatmap,
                                        validate_models,
@@ -179,12 +180,13 @@ unfitted_models = [LinearRegression(),
 # -----------------
 # Produce stability plots for linear models
 fs_seed = 10
-coef_dict = coef_dict(estimators=unfitted_models[:-2],
-                      X=X_train, Y=y_train,
-                      n_iters=20, bootstrap=True,
-                      random_state=fs_seed)
+coefs = coef_dict(estimators=unfitted_models[:-2],
+                  X=X_train, Y=y_train,
+                  n_iters=10, bootstrap=True,
+                  random_state=fs_seed)
+coef_stats = coef_stats_dict(coefs)
 
-for model, coef in coef_dict.items():
+for model, coef in coefs.items():
     fig = plot_stability(coef, title=model)
     
     name = model.lower() + "_stability_plot.png"
@@ -192,7 +194,7 @@ for model, coef in coef_dict.items():
     fig.savefig(figpath)
 
 # Plot mean coefficients across all linear models
-fig = plot_mean_coef_heatmap(coef_dict)
+fig = plot_mean_coef_heatmap(coefs)
 fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
             bbox_inches = "tight")
 
