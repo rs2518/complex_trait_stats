@@ -58,8 +58,8 @@ for folder in [fig_dir, stab_figpath, eval_figpath, eda_figpath]:
 
 
 # Load data and add column of ones for intercept
-df = load_dataframe(RAW_DATA)
-# df = load_dataframe("snp_raw_allchr1000.csv")
+# df = load_dataframe(RAW_DATA)
+df = load_dataframe("snp_raw_allchr1000.csv")
 data = process_data(df)
 
 X = data.drop(['p_value'], axis=1)
@@ -105,7 +105,6 @@ ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
 enet = enet_regression(X_train, y_train, param_grid=en_params,
                        n_jobs=n_jobs, random_state=seed,
                        return_fit_time=show_time, warm_start=True)
-# ElasticNet takes VERY long. Using warm_start
 
 
 # PLS Regression
@@ -142,7 +141,6 @@ one_layer_params = dict(hidden_layers=[1],
                         l2=[1e-04],
                         epochs=[20],
                         batch_size=[100])    # Single hidden layer
-
 multi_layer_params = dict(hidden_layers=[2, 3],
                           first_neurons=[1, 10, 25],
                           hidden_neurons=[1, 10, 25],
@@ -155,20 +153,9 @@ multi_layer_params = dict(hidden_layers=[2, 3],
                           batch_size=[100])    # Multiple hidden layers
 
 mlp_params = [one_layer_params, multi_layer_params]
-
 mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=5,
                             n_jobs=n_jobs, random_state=seed,
                             return_fit_time=show_time)
-
-
-# Get cross-validation results
-sort = "ascending"
-lasso_cv = cv_table(lasso.cv_results_, ordered=sort)
-ridge_cv = cv_table(ridge.cv_results_, ordered=sort)
-enet_cv = cv_table(enet.cv_results_, ordered=sort)
-pls_cv = cv_table(pls.cv_results_, ordered=sort)
-rf_cv = cv_table(rf.cv_results_, ordered=sort)
-mlp_cv = cv_table(mlp.cv_results_, ordered=sort)
 
 
 # Get best model hyperparameters from tuned models
@@ -226,32 +213,37 @@ fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
             bbox_inches = "tight")
 
 
+# Hyperparameter stability
+# ------------------------
+# Get cross-validation results
+sort = "ascending"
+lasso_cv = cv_table(lasso.cv_results_, ordered=sort)
+ridge_cv = cv_table(ridge.cv_results_, ordered=sort)
+enet_cv = cv_table(enet.cv_results_, ordered=sort)
+pls_cv = cv_table(pls.cv_results_, ordered=sort)
+rf_cv = cv_table(rf.cv_results_, ordered=sort)
+mlp_cv = cv_table(mlp.cv_results_, ordered=sort)
 
-# Positive control and negative control model validation
-# X_val, X_testing, Y_val, Y_testing = \
-#     train_test_split(X_test, Y_test, test_size=0.8, random_state=1010)
 
+# Model validation
+# ----------------
 n_repeats = 10
 mv_seed = 1
+scoring = "r2"
 
 pos_ctrl = validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                           n_repeats=n_repeats, random_state=mv_seed)
+                           scoring=scoring, n_repeats=n_repeats,
+                           random_state=mv_seed)
  
 neg_ctrl = validate_models(estimators=unfitted_models, X=X_test, y=y_test,
-                           n_repeats=n_repeats, random_state=mv_seed,
+                           scoring=scoring, n_repeats=n_repeats,
+                           random_state=mv_seed,
                            control_params={"positive_control":False})
 
 
 # Permutation importances for each feature
-perms = perm_importances(fitted_models, X_test, y_test, n_repeats=n_repeats,
-                         random_state=mv_seed)
-
-
-# Hyperparameter stability
-# ------------------------
-# # Plot ranked results of cross-validation as a table
-# for model_cv in [lasso, ridge, enet, pls, rf, mlp]:
-#     table = cv_table(model_cv.cv_results_, ordered="ascending")
+perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
+                         n_repeats=n_repeats, random_state=mv_seed)
 
 
 
@@ -259,6 +251,8 @@ perms = perm_importances(fitted_models, X_test, y_test, n_repeats=n_repeats,
 # Model diagnostics
 # =============================================================================
 
+# Truths vs. predictions
+# ----------------------
 # Get model predictions
 predictions = {key:model.predict(X_test).ravel()
                for (key, model) in zip(perms.keys(), fitted_models)}
@@ -281,6 +275,8 @@ metric_df.index = predictions.keys()
 # metrics_table = plt.table(cellText=metric_df)
 
 
+# Linear coefficient plots
+# ------------------------
 # Plot linear model coefficients
 for model in fitted_models[:-2]:
     
