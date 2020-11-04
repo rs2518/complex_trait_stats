@@ -604,6 +604,19 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
         return Bunch(scores=scores, baseline_scores=baseline_scores)
 
 
+def dist_table(validation_res, name=None, dp=3):
+    """Dataframe of statistics from score distributions in validate_models
+    """
+    models = validation_res.scores.columns.to_list()
+    
+    means = validation_res.scores.mean().values
+    std = validation_res.scores.std().values
+    stats = ["{:.{a}f} (± {:.{b}f})".format(means[i], std[i], a=dp, b=dp+1)
+             for i in range(len(models))]
+    
+    return pd.DataFrame(stats, index=models, columns=[name])
+
+
 def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
                      n_jobs=-2, random_state=None):
     """Get permutation importances across all FITTED estimators
@@ -612,6 +625,8 @@ def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
     """    
     if not hasattr(estimators, "__iter__"):
         estimators = [estimators]
+        
+    features = X.columns.to_list()
        
     # Create dictionary to store results
     importance_dict = {}
@@ -637,6 +652,9 @@ def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
             permutation_importance(estimator=estimator, X=X, y=y,
                                    scoring=scoring, n_repeats=n_repeats,
                                    n_jobs=jobs, random_state=random_state)
+        importance_dict[name].importances = \
+            pd.DataFrame(importance_dict[name].importances,
+                         index=features)
             
     return importance_dict
 
@@ -654,3 +672,25 @@ def get_p(n, n_distribution, alpha=0.05):
     ut = np.percentile(n_distribution, 100-sl)
     
     return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
+
+
+def perm_table(perm_importances, dp=3):
+    """Dataframe of results from perm_importances
+    """
+    models = list(perm_importances.keys())
+    features = perm_importances[models[0]].importances.index.to_list()
+    
+    # Get means and confidence intervals across each feature
+    dataframe = None
+    for i, model in enumerate(models):
+        means = perm_importances[model].importances_mean
+        stats = [get_p(0, perm_importances[model].importances.values[j,:])
+                 for j in range(len(features))]
+        text = "{:.{dp}g} ({:.{dp}g} , {:.{dp}g})"
+        
+        data = [text.format(mean, stat.lower_tail, stat.upper_tail, dp=dp)
+                for mean, stat in zip(means, stats)]
+        data = pd.DataFrame(data, index=features, columns=[model])
+        dataframe = pd.concat([dataframe, data], axis=1)
+    
+    return dataframe
