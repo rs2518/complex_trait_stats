@@ -530,7 +530,7 @@ def _calculate_permutation_scores(estimator, X, y, col_idx,
             train_test_split(X_permuted, y, train_size=sample_size,
                              random_state=random_state)
         
-        # score on testing
+        # Score on training set
         feature_score = scorer(estimator, X_sample, y_sample)
         scores[n_round] = feature_score
 
@@ -676,6 +676,10 @@ def get_p(n, n_distribution, alpha=0.05):
 
 def perm_table(perm_importances, dp=3):
     """Dataframe of results from perm_importances
+    
+    Confidence intervals are such that if zero is within in the interval,
+    then we can be confident with 95% certainty that the given feature affects
+    the models predictive ability
     """
     models = list(perm_importances.keys())
     features = perm_importances[models[0]].importances.index.to_list()
