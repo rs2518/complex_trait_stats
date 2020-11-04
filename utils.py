@@ -265,19 +265,28 @@ def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=True,
     
     
     # Set width of marker edge and line endpoints for better visuals
-    lw = 1/(len(yt)**0.25)
+    # lw = 1/(len(yt)**0.25)
     lim = [min(yt), max(yt)]
     
     fig, ax = plt.subplots()
     
-    ax.scatter(yt, yp, marker=".", linewidth=lw, edgecolor="w",
-               **kwargs)
-    ax.plot(lim, lim, c=linecolor)
-    ax.set_xlabel("True")
-    ax.set_ylabel("Predicted")
-    ax.text(0.05, 0.95, text, transform=ax.transAxes, verticalalignment="top",
-            fontsize=12, bbox=bbox)
-    ax.set_title(title)
+    ax = sns.jointplot(yt, yp, kind="reg")
+    ax.ax_joint.plot(lim, lim, c=linecolor)
+    ax.ax_joint.set_xlabel("True")
+    ax.ax_joint.set_ylabel("Predicted")
+    ax.ax_joint.text(0.05, 0.95, text, transform=ax.ax_joint.transAxes,
+                     verticalalignment="top", fontsize=12, bbox=bbox)
+    ax.ax_joint.set_title(title)
+    
+    
+    # ax.scatter(yt, yp, marker=".", linewidth=lw, edgecolor="w",
+    #            **kwargs)
+    # ax.plot(lim, lim, c=linecolor)
+    # ax.set_xlabel("True")
+    # ax.set_ylabel("Predicted")
+    # ax.text(0.05, 0.95, text, transform=ax.transAxes, verticalalignment="top",
+    #         fontsize=12, bbox=bbox)
+    # ax.set_title(title)
 
     plt.tight_layout()
     # plt.show()
