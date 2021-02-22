@@ -57,6 +57,21 @@ def _set_categories(dataframe):
     return dataframe
 
 
+def _order_chromosomes(dataframe):
+    """Order chromosome columns
+    """
+    name = "Chromosome_chr"
+    
+    chrom = [col for col in dataframe.columns if name in col]
+    cols = [col for col in dataframe.columns if col not in chrom]
+    new_chrom = [name+str(i+1) for i in range(len(chrom))] 
+    
+    new_cols = cols[:-1] + new_chrom + [cols[-1]]    # p-value as last column
+    dataframe = dataframe[new_cols]
+    
+    return dataframe
+
+
 def _remove_zero_pval(dataframe):
     """Add constant to zero p_values
     
@@ -97,9 +112,9 @@ def scale_numeric(data):
 
 
 def process_data(data):
-    """Scale numeric predictors and binarise categorical predictors
+    """Process features and order chromosome columns
     """    
-    return binarise_category(scale_numeric(data))
+    return _order_chromosomes(binarise_category(scale_numeric(data)))
 
 
 
