@@ -1,3 +1,3 @@
 from .utils import load_dataframe
 
-from .utils import ROOT, RAW_DATA, PROCESSED_DATA
+from .utils import ROOT, RAW_DATA, TOY_DATA, TOY_PROCESSED_DATA

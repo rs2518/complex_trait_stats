@@ -62,8 +62,7 @@ for folder in [fig_dir, stab_figpath, eval_figpath, eda_figpath]:
 
 
 # Load data and add column of ones for intercept
-# df = load_dataframe(RAW_DATA)
-df = load_dataframe("snp_raw_allchr1000.csv")
+df = load_dataframe(RAW_DATA)
 data = process_data(df)
 
 

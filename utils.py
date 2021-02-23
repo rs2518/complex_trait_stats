@@ -27,8 +27,9 @@ from sklearn.utils import Bunch, check_random_state
 
 ROOT = os.path.join(os.path.expanduser("~"),
                     "Desktop/Term 3 MSc Project/complex_trait_stats")
-RAW_DATA = "snp_raw.csv"
-PROCESSED_DATA = "snp_processed.csv"
+RAW_DATA = "snp_raw_allchr1000.csv"
+TOY_DATA = "snp_raw_4chr500.csv"
+TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
 
 
 
