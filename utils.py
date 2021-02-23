@@ -480,6 +480,41 @@ def coef_stats_dict(coef_dict, alpha=0.05):
     return coef_stats
 
 
+def plot_rf_feature_importance(forest, feature_names, ordered=None,
+                               title=None, **kwargs):
+    """Plots bar graph of feature importances for Random Forest
+    
+    NOTE: Feature importances often do not perform well for high cardinality
+    features
+    """
+    importances = forest.feature_importances_
+    
+    if title is None:
+        title = "Random Forest Feature Importances"
+    if ordered is None:
+        sorted_idx = np.arange(len(importances)-1, -1, step=-1)
+    elif ordered == "ascending":
+        sorted_idx = importances.argsort()
+    elif ordered == "descending":
+        sorted_idx = (-importances).argsort()
+    
+    y_ticks = np.arange(0, len(feature_names))
+    err = np.std([tree.feature_importances_ for tree in forest.estimators_],
+                 axis=0)
+    
+    fig, ax = plt.subplots(figsize=(8,8))
+    ax.barh(y_ticks, importances[sorted_idx], xerr=err[sorted_idx], **kwargs)
+    ax.set_xlim(0,1)
+    ax.set_yticklabels(feature_names[sorted_idx])
+    ax.set_yticks(y_ticks)
+    ax.set_title(title)
+    
+    plt.tight_layout()
+    # plt.show()
+    
+    return fig
+
+
 
 # Model evaluation
 # ----------------

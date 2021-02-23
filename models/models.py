@@ -45,7 +45,8 @@ from complex_trait_stats.utils import (coef_dict,
                                        cv_table,
                                        get_p,
                                        dist_table,
-                                       perm_table)
+                                       perm_table,
+                                       plot_rf_feature_importance)
 
 
 
@@ -208,7 +209,19 @@ for model, coef in coefs.items():
 # Plot mean coefficients across all linear models
 fig = plot_mean_coef_heatmap(coefs)
 fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
-            bbox_inches = "tight")
+            bbox_inches="tight")
+
+# Plot random forest importances
+rf_importances = rf.best_estimator_.feature_importances_
+cmap = sns.hls_palette(len(rf_importances[rf_importances > 0]), l=.55)
+
+fig = plot_rf_feature_importance(forest=rf.best_estimator_,
+                                 title="Random Forest feature importances",
+                                 color=cmap, feature_names=X.columns,
+                                 ordered="ascending")
+fig.savefig(os.path.join(stab_figpath, "rf_importances.png"),
+            bbox_inches="tight")
+
 
 
 # Hyperparameter stability
