@@ -65,17 +65,12 @@ for folder in [fig_dir, stab_figpath, eval_figpath, eda_figpath]:
 df = load_dataframe("snp_raw_allchr1000.csv")
 data = process_data(df)
 
+
+# Split data into training and testing sets
 X = data.drop(['p_value'], axis=1)
-# Y = pd.concat([data["p_value"], -np.log10(data["p_value"])], axis=1)
-# Y.columns = ["p_value", "-log10_p"]
-# X_train, X_test, Y_train, Y_test = \
-#     train_test_split(X, Y, test_size=0.3, random_state=1010)
-
-
 y = -np.log10(data["p_value"])
 X_train, X_test, y_train, y_test = \
     train_test_split(X, y, test_size=0.3, random_state=1010)
-
 
 
 
@@ -127,7 +122,7 @@ rf_params = dict(n_estimators=[10, 100, 250],
                   min_samples_leaf=[0.001, 0.01, 0.1])
 # 162 possible combinations. Test ~ 25% of hyperparameter space
 
-rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=1,
+rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=5,
                    n_jobs=n_jobs, random_state=seed,
                    return_fit_time=show_time, warm_start=True)
 
@@ -156,7 +151,7 @@ multi_layer_params = dict(hidden_layers=[2, 3],
                           batch_size=[100])    # Multiple hidden layers
 
 mlp_params = [one_layer_params, multi_layer_params]
-mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=1,
+mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=5,
                             n_jobs=n_jobs, random_state=seed,
                             return_fit_time=show_time)
 
@@ -196,11 +191,11 @@ unfitted_models = [LinearRegression(),
 # Feature stability
 # -----------------
 # Produce stability plots for linear models
-fs_seed = 10
+fs_seed = 1
 coefs = coef_dict(estimators=unfitted_models[:-2],
                   X=X_train, Y=y_train,
-                  n_iters=10, bootstrap=True,
-                  random_state=fs_seed)
+                  n_iters=20, bootstrap=True,
+                  random_state=fs_seed, train_size=0.3)
 coef_stats = coef_stats_dict(coefs)
 
 for model, coef in coefs.items():

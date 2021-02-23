@@ -206,15 +206,17 @@ def metrics(y_true, y_pred, dp=4):
 
 
 
-def cv_table(cv_results_, ordered=None):
+def cv_table(cv_results_, ordered=None, return_train_scores=False):
     """Table of cross-validation results
     
     Returns table "mean_test_scores" and "std_test_scores" along with
     respective model parameters from cv_results_. Can sort results according
     to rank_test_score by setting sort="ascending" or sort="descending".
     """    
-    dict_keys = ["rank_test_score", "mean_test_score", "std_test_score",
-                 "mean_train_score", "std_train_score"]
+    dict_keys = ["rank_test_score", "mean_test_score", "std_test_score"]
+    if return_train_scores:
+        dict_keys += ["mean_train_score", "std_train_score"]
+        
     dict_keys += [key for key in cv_results_.keys() if "param_" in key]
     d = {key:cv_results_[key] for key in dict_keys}
     
@@ -237,7 +239,7 @@ def get_outlier_inds(a, threshold=8):
 
 
 
-def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=True,
+def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=False,
                       marker=".", markercolor=None, edgecolor="w",
                       ls="--", linecolor="red", **kwargs):
     """Plot true y values against predicted y values
@@ -280,28 +282,24 @@ def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=True,
     
     
     # Set width of marker edge and line endpoints for better visuals
-    # lw = 1/(len(yt)**0.25)
-    lim = [min(yt), max(yt)]
+    lw = 10/(len(yt)**0.25)
+    lim = [np.amin(np.array([yt, yp])), np.amax(np.array([yt, yp]))]
     
-    fig, ax = plt.subplots()
+    fig = sns.JointGrid(x=yt, y=yp, xlim=lim, ylim=lim, height=10)
     
-    ax = sns.jointplot(yt, yp, kind="reg")
-    ax.ax_joint.plot(lim, lim, c=linecolor)
-    ax.ax_joint.set_xlabel("True")
-    ax.ax_joint.set_ylabel("Predicted")
-    ax.ax_joint.text(0.05, 0.95, text, transform=ax.ax_joint.transAxes,
-                     verticalalignment="top", fontsize=12, bbox=bbox)
-    ax.ax_joint.set_title(title)
+    fig.plot_joint(sns.regplot, marker="o",
+                       scatter_kws=dict(alpha=0.75, edgecolor="w", s=25),
+                       line_kws=dict(alpha=0.75, linewidth=0.6))
+    fig.plot_marginals(sns.kdeplot, shade=True,
+                       linewidth=lw,
+                       color="r")
     
-    
-    # ax.scatter(yt, yp, marker=".", linewidth=lw, edgecolor="w",
-    #            **kwargs)
-    # ax.plot(lim, lim, c=linecolor)
-    # ax.set_xlabel("True")
-    # ax.set_ylabel("Predicted")
-    # ax.text(0.05, 0.95, text, transform=ax.transAxes, verticalalignment="top",
-    #         fontsize=12, bbox=bbox)
-    # ax.set_title(title)
+    fig.ax_joint.plot(lim, lim, color="grey", linestyle="--", linewidth=lw)
+    fig.ax_joint.set_xlabel("True")
+    fig.ax_joint.set_ylabel("Predicted")
+    fig.ax_joint.text(0.05, 0.95, text, transform=fig.ax_joint.transAxes,
+                      verticalalignment="top", fontsize=12, bbox=bbox)
+    fig.ax_joint.set_title(title)
 
     plt.tight_layout()
     # plt.show()
@@ -438,10 +436,14 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     # Return mean coefficients
     mean_coefs = _mean_summary(coef_dict)
     
-    fig, ax = plt.subplots()
+    # Set figure inputs
+    a = np.clip(np.amax(np.abs(mean_coefs)), a_min=None, a_max=[1.3])[0]
+    vlim = a*1.05
+    
+    fig, ax = plt.subplots(figsize=(8,8))
     plt.suptitle(title, fontsize=16)
     
-    sns.heatmap(data=mean_coefs, vmin=-1, vmax=1, cmap="vlag", 
+    sns.heatmap(data=mean_coefs, vmin=-vlim, vmax=vlim, cmap="vlag", 
                 xticklabels=models, yticklabels=features, ax=ax,
                 **hm_kwargs)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
