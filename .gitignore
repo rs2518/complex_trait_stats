@@ -6,6 +6,7 @@
 *.csv
 *.docx
 *.xlsx
+*.avinput
 
 # Plots
 figures/
@@ -20,3 +21,6 @@ scrap/
 
 # Setup
 setup.yml
+
+# Test scripts
+preprocess/process_geneatlas_newtest.py
