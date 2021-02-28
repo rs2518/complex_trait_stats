@@ -6,6 +6,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# from joblib import Parallel
+# from joblib import delayed
+
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.metrics import mean_absolute_error as MAE
 from sklearn.metrics import explained_variance_score as explained_var
@@ -17,11 +20,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from scipy.stats import zscore
 
-# from sklearn.inspection._permutation_importance import \
-#     _calculate_permutation_scores
+from sklearn.inspection._permutation_importance import \
+    _calculate_permutation_scores
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import check_scoring
 from sklearn.utils import Bunch, check_random_state
+# from sklearn.utils import Bunch, check_random_state, check_array
 
 
 
@@ -519,29 +523,21 @@ def plot_rf_feature_importance(forest, feature_names, ordered=None,
 
 # Model evaluation
 # ----------------
+
+def _create_control_feature(X, y, sigma=0., random_state=None,
+                            name="control_variable"):
+    """Create a positive control feature
     
-def _create_control_feature(X, y, positive_control=True, sigma=0.,
-                            random_state=None, name="control_variable"):
-    """Create a positive or negative control feature
-    
-    Adds control feature to array of covariates, X.
-    Setting positive_control=True creates a 'positive' control feature and
-    setting positive_control=False creates a 'negative' control feature
+    Adds control feature with Gaussian distributed noise to array of
+    covariates, X
     """
-    # If positive control, create a feature highly correlated to y with
+    # For positive control, create a feature highly correlated to y with
     # additional noise defined by sigma.
-    # Otherwise (negative control), create a feature uncorrelated with y by
-    # shuffling y
     X2 = X.copy()
     y2 = np.array(y).reshape(-1, 1)
+    r = np.random.RandomState(random_state)
+    x0 = y2 + r.normal(0, sigma, size=y2.shape)
     
-    if positive_control:
-        r = np.random.RandomState(random_state)
-        x0 = y2 + r.normal(0, sigma, size=y2.shape)
-    else:
-        from sklearn.utils import shuffle
-        x0 = shuffle(y2, random_state=random_state)
-        
     # Add feature onto X (dataframe or array)
     if type(X) == np.ndarray:
         X2 = np.concatenate((X, x0.reshape(-1, 1)), 1)
@@ -549,55 +545,57 @@ def _create_control_feature(X, y, positive_control=True, sigma=0.,
         X2[name] = x0
     
     return X2
-       
 
-def _calculate_permutation_scores(estimator, X, y, col_idx,
-                                  random_state, n_repeats, scorer,
-                                  sample_size=0.2):
-    """Calculate score when `col_idx` is permuted
+
+def _calculate_perm_labels(estimator, X, y, random_state, n_repeats, scorer):
+    """Calculate score when labels are permuted
     
-    Variation of sklearn's '_calculate_permutation_scores'
+    Variation of sklearn's '_calculate_permutation_scores'. Permutes y instead
+    of X.
     """
     random_state = check_random_state(random_state)
 
-    # Work on a copy of X to to ensure thread-safety in case of threading based
-    # parallelism. Furthermore, making a copy is also useful when the joblib
-    # backend is 'loky' (default) or the old 'multiprocessing': in those cases,
-    # if X is large it will be automatically be backed by a readonly memory map
-    # (memmap). X.copy() on the other hand is always guaranteed to return a
-    # writable data-structure whose columns can be shuffled inplace.
-    X_permuted = X.copy()
+    y_permuted = y.copy()
     scores = np.zeros(n_repeats)
     shuffling_idx = np.arange(X.shape[0])
     for n_round in range(n_repeats):
         random_state.shuffle(shuffling_idx)
-        if hasattr(X_permuted, "iloc"):
-            col = X_permuted.iloc[shuffling_idx, col_idx]
-            col.index = X_permuted.index
-            X_permuted.iloc[:, col_idx] = col
-        else:
-            X_permuted[:, col_idx] = X_permuted[shuffling_idx, col_idx]
-        
-        # Take a random sample of the data and associated labels
-        X_sample, _, y_sample, _ = \
-            train_test_split(X_permuted, y, train_size=sample_size,
-                             random_state=random_state)
-        
+        y_permuted = y_permuted[shuffling_idx]
+
         # Score on training set
-        feature_score = scorer(estimator, X_sample, y_sample)
+        feature_score = scorer(estimator, X, y_permuted)
         scores[n_round] = feature_score
 
     return scores
 
+
+def calculate_perm_scores(estimator, X, y, col_idx, random_state,
+                          n_repeats, scorer, positive_ctrl=True):
+    """General permutation score algorithm
     
-def validate_models(estimators, X, y, scoring=None, n_repeats=5,
-                    random_state=None, return_fitted_estimators=False,
-                    control_params={}):
-    """Validate list of UNFITTED models using control feature
+    If 'positive_ctrl=True', permute X. Otherwise, permute y
+    """    
+    if positive_ctrl:
+        return _calculate_permutation_scores(estimator=estimator,
+                                             X=X, y=y, col_idx=col_idx,
+                                             random_state=random_state,
+                                             n_repeats=n_repeats,
+                                             scorer=scorer)
+    else:
+        return _calculate_perm_labels(estimator=estimator, X=X, y=y,
+                                      random_state=random_state,
+                                      n_repeats=n_repeats, scorer=scorer)
+
+    
+def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
+                    positive_ctrl=True, random_state=None,
+                    return_fitted_estimators=False, control_params={}):
+    """Model validation for UNFITTED models
+    
+    Used to carry out internal validation on individual samples.
     
     Returns dataframe of differences between the permuted scores and baseline
-    score for the given estimator after fitting on the data with the added
-    control feature.
+    score for the given estimator after fitting on the data.
     Optionally returns dictionary of estimators (after fitting with additional
     control feature) and baseline scores if return_fitted_estimators=True
     """    
@@ -606,8 +604,17 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
     # if random_state is not None:
     #     control_params["random_state"] = random_state
     
-    Xs = _create_control_feature(X=X, y=y, random_state=random_state,
-                                 **control_params)
+    # Check if bool
+    if type(positive_ctrl) != bool:
+        raise TypeError("Argument should be boolean")
+        
+    if positive_ctrl:
+        Xs = _create_control_feature(X=X, y=y, random_state=random_state,
+                                     **control_params)
+    else:
+        Xs = X.copy()
+        
+    ys = y.copy()
     
     # Create arrays to store results
     scores = np.zeros((n_repeats, len(estimators)))
@@ -624,23 +631,21 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
             if hasattr(Xs, "iloc"):
                 Xs = Xs.copy().values
             if hasattr(y, "iloc"):
-                y = y.copy().values
+                ys = ys.copy().values
                 
             estimator.set_params(input_dim=Xs.shape[1])
         else:
             models.append(type(estimator).__name__)
 
-        estimator.fit(Xs, y)
+        estimator.fit(Xs, ys)
         scorer = check_scoring(estimator, scoring=scoring)
-        baseline_scores[i] = scorer(estimator, Xs, y)
+        baseline_scores[i] = scorer(estimator, Xs, ys)
         
         scores[:,i] = \
-            _calculate_permutation_scores(estimator=estimator,
-                                          X=Xs, y=y,
-                                          col_idx=Xs.shape[1]-1,
-                                          random_state=random_state,
-                                          n_repeats=n_repeats,
-                                          scorer=scorer)
+            calculate_perm_scores(estimator=estimator, X=Xs, y=ys,
+                                  col_idx=Xs.shape[1]-1,
+                                  random_state=random_state,
+                                  n_repeats=n_repeats, scorer=scorer)
     
         # # Calculate difference in baseline and permuted scores
         # scores[:,i] = baseline_scores[i] - scores[:,i]
@@ -655,35 +660,72 @@ def validate_models(estimators, X, y, scoring=None, n_repeats=5,
                      model_dict=model_dict)
     else:
         return Bunch(scores=scores, baseline_scores=baseline_scores)
-
-
-def dist_table(validation_res, name=None, dp=3):
-    """Dataframe of statistics from score distributions in validate_models
+    
+    
+def _bootstrap_wrapper(func, estimators, X, y, n_samples=3,
+                       sample_size=0.3, random_state=None, **kwargs):
+    """Wrapper function for performing operation over bootstrapped samples
+        
+    **kwargs are from 'func'
     """
-    models = validation_res.scores.columns.to_list()
+    r = check_random_state(random_state)
     
-    means = validation_res.scores.mean().values
-    std = validation_res.scores.std().values
-    stats = ["{:.{a}f} (± {:.{b}f})".format(means[i], std[i], a=dp, b=dp+1)
-             for i in range(len(models))]
+    # Loop through n_samples
+    res = {}
+    idxs = np.arange(X.shape[0])
+    for n in range(n_samples):
+        sample_idx = \
+            train_test_split(
+                idxs, train_size=sample_size,
+                random_state=r.randint(0, np.iinfo(np.int32).max+1))[0]
+        
+        # Take a random sample of the data
+        ys = y[sample_idx].copy()
+        if hasattr(X, "iloc"):
+            Xs = X.iloc[sample_idx, :].copy()
+        else:
+            Xs = X[sample_idx, :].copy()
+        
+        # Add sample index into Bunch object
+        s = func(estimators, Xs, ys, random_state=random_state, **kwargs)
+        s.sample = sample_idx
+        res["sample_"+str(n+1)] = s
     
-    return pd.DataFrame(stats, index=models, columns=[name])
+    return res
 
 
-def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
-                     n_jobs=-2, random_state=None):
-    """Get permutation importances across all FITTED estimators
+def model_validation(estimators, X, y, n_samples=3, n_repeats=5,
+                     sample_size=0.3, positive_ctrl=True,
+                     random_state=None, **kwargs):
+    """Run validate_sample over _bootstrap_wrapper
+    """
+    # Set function arguments
+    kwargs["n_repeats"] = n_repeats
+    kwargs["positive_ctrl"] = positive_ctrl
     
-    Returns dictionary of all permutations scores
-    """    
+    return _bootstrap_wrapper(validate_sample, estimators=estimators,
+                              X=X, y=y, n_samples=n_samples,
+                              sample_size=sample_size,
+                              random_state=random_state,
+                              **kwargs)
+
+
+def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
+                     sample_size=0.3, scoring=None, n_jobs=-2,
+                     random_state=None, **kwargs):
+    """Run sklearn permutation_importances over _bootstrap_wrapper
+    """
+    # Set function arguments
+    kwargs["n_repeats"] = n_repeats
+    kwargs["scoring"] = scoring
+    
     if not hasattr(estimators, "__iter__"):
         estimators = [estimators]
         
-    features = X.columns.to_list()
-       
     # Create dictionary to store results
     importance_dict = {}
     
+    # Loop over estimators
     for estimator in estimators:
         
         # Get estimator name then calculate permutation importance
@@ -701,15 +743,30 @@ def perm_importances(estimators, X, y, scoring=None, n_repeats=5,
             name = type(estimator).__name__
             jobs = n_jobs
         
+        # Store results
+        kwargs["n_jobs"] = jobs
         importance_dict[name] = \
-            permutation_importance(estimator=estimator, X=X, y=y,
-                                   scoring=scoring, n_repeats=n_repeats,
-                                   n_jobs=jobs, random_state=random_state)
-        importance_dict[name].importances = \
-            pd.DataFrame(importance_dict[name].importances,
-                         index=features)
+            _bootstrap_wrapper(permutation_importance,
+                               estimators=estimator,
+                               X=X, y=y, n_samples=n_samples,
+                               sample_size=sample_size,
+                               random_state=random_state,
+                               **kwargs)
             
     return importance_dict
+
+
+def dist_table(validation_res, name=None, dp=3):
+    """Dataframe of statistics from score distributions in validate_models
+    """
+    models = validation_res.scores.columns.to_list()
+    
+    means = validation_res.scores.mean().values
+    std = validation_res.scores.std().values
+    stats = ["{:.{a}f} (± {:.{b}f})".format(means[i], std[i], a=dp, b=dp+1)
+             for i in range(len(models))]
+    
+    return pd.DataFrame(stats, index=models, columns=[name])
 
 
 def get_p(n, n_distribution, alpha=0.05):
