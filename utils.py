@@ -637,7 +637,8 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
         else:
             models.append(type(estimator).__name__)
 
-        estimator.fit(Xs, ys)
+        if positive_ctrl:
+            estimator.fit(Xs, ys)
         scorer = check_scoring(estimator, scoring=scoring)
         baseline_scores[i] = scorer(estimator, Xs, ys)
         
@@ -756,55 +757,67 @@ def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
     return importance_dict
 
 
-def dist_table(validation_res, name=None, dp=3):
-    """Dataframe of statistics from score distributions in validate_models
-    """
-    models = validation_res.scores.columns.to_list()
-    
-    means = validation_res.scores.mean().values
-    std = validation_res.scores.std().values
-    stats = ["{:.{a}f} (± {:.{b}f})".format(means[i], std[i], a=dp, b=dp+1)
-             for i in range(len(models))]
-    
-    return pd.DataFrame(stats, index=models, columns=[name])
-
-
 def get_p(n, n_distribution, alpha=0.05):
     """Return p value of entry n given a distribution with sig. level alpha
     """
     sl = (alpha/2)*100
-    i = (np.searchsorted(n_distribution, n)+1)/(len(n_distribution)+1)
-    if i > np.percentile(np.insert(n_distribution, 0, n), 50):
-        p = 1 - i
+    a = np.insert(n_distribution, 0, n)
+    q2 = np.percentile(a, 50)
+        
+    if n >= q2:
+        p = 1 - np.searchsorted(a, n)/len(a)
     else:
-        p = i
+        p = np.searchsorted(a, n)/len(a)
     lt = np.percentile(n_distribution, sl)
     ut = np.percentile(n_distribution, 100-sl)
     
     return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
 
 
-def perm_table(perm_importances, dp=3):
-    """Dataframe of results from perm_importances
+def _hypothesis_test(n, n_distribution, cut_off=0.05, return_p=False):
+    """Non-parametric hypothesis test
     
-    Confidence intervals are such that if zero is within in the interval,
-    then we can be confident with 95% certainty that the given feature affects
-    the models predictive ability
+    Default cut-off percentile is 'cut_off=0.05'. If 'return_p=True', return
+    the generated p-value.
     """
-    models = list(perm_importances.keys())
-    features = perm_importances[models[0]].importances.index.to_list()
+    # Perform statistical test
+    p = get_p(n=n, n_distribution=n_distribution).p_val
     
-    # Get means and confidence intervals across each feature
-    dataframe = None
-    for i, model in enumerate(models):
-        means = perm_importances[model].importances_mean
-        stats = [get_p(0, perm_importances[model].importances.values[j,:])
-                 for j in range(len(features))]
-        text = "{:.{dp}g} ({:.{dp}g} , {:.{dp}g})"
+    # Test if p-value exceeds cut-off
+    if p <= cut_off:
+        ind = 1
+    else:
+        ind = 0
+    
+    if return_p:
+        return ind, p
+    else:
+        return ind
+    
+    
+def validation_tab(results, cut_off=0.05):
+    """Results table of model validation results
+    """
+    keys = list(results.keys())
+    models = results[keys[0]].scores.columns
+    n_samples = len(keys)
+    n_models = len(models)
+    
+    a = np.zeros((n_samples, n_models))
+    
+    # Loop over samples
+    for sample in range(n_samples):
         
-        data = [text.format(mean, stat.lower_tail, stat.upper_tail, dp=dp)
-                for mean, stat in zip(means, stats)]
-        data = pd.DataFrame(data, index=features, columns=[model])
-        dataframe = pd.concat([dataframe, data], axis=1)
+        baseline_scores = results[keys[sample]].baseline_scores
+        scores = results[keys[sample]].scores.values
+        
+        # Loop over models
+        a[sample, :] = np.array([_hypothesis_test(n=baseline_scores[i],
+                                                  n_distribution=scores[:, i],
+                                                  cut_off=cut_off,
+                                                  return_p=False)
+                                 for i in range(n_models)])
     
-    return dataframe
+    prop = a.sum(axis=0)/a.shape[0]
+
+    return prop

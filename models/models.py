@@ -43,9 +43,7 @@ from complex_trait_stats.utils import (coef_dict,
                                        metrics,
                                        plot_true_vs_pred,
                                        cv_table,
-                                       get_p,
-                                       dist_table,
-                                       perm_table,
+                                       validation_tab,
                                        plot_rf_feature_importance)
 
 
@@ -240,18 +238,64 @@ mlp_cv = cv_table(mlp.cv_results_, ordered=sort)
 # Model validation
 # =============================================================================
 
-# Positive control (perfectly correlated control feature)
-# -------------------------------------------------------
+# Negative control (permuted labels)
+# ----------------------------------
+
+# Set iterables and create barplot annotation function
 n_samples = 3
 sample_size = 0.3
 n_repeats = 5
 mv_seed = 1
 scoring = "r2"
 
+def annotate_bar(bars, dp=2):
+    """Annotate bar plot with bar height to 'dp' decimal places
+    """
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate("{:.{dp}f}".format(float(height), dp=dp),
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 1),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha="center", va="bottom")
+
+# Negative control over bootstrapped distributions
+neg_ctrl = model_validation(estimators=fitted_models, X=X_test, y=y_test,
+                            scoring=scoring, n_samples=n_samples,
+                            sample_size=sample_size, n_repeats=n_repeats,
+                            positive_ctrl=False, random_state=mv_seed)
+
+# Set model names and colormap
+models = neg_ctrl[list(neg_ctrl.keys())[0]].scores.columns.to_list()
+cmap = sns.hls_palette(len(models), l=.55)
+
+# Create table of results and plot validation results
+neg_results = validation_tab(neg_ctrl)
+neg_tab = pd.Series(data=neg_results, index=models)
+
+# Plot negative control results
+xn = np.arange(len(models))
+
+fig, ax = plt.subplots(figsize=(8,8))
+plt.suptitle(r"Proportion of samples where $H_0$ was rejected", fontsize=16)
+
+ax.bar(x=xn, height=neg_tab.values, width=1,
+       color=cmap)
+ax.set_xticks(xn)
+ax.set_xticklabels(models)
+ax.set_ylim([0, 1])
+annotate_bar(ax.patches, dp=2)    # Annotate bar plot
+plt.xticks(rotation=270)
+plt.show()
+
+
+
+# Positive control (perfectly correlated control feature)
+# -------------------------------------------------------
 
 # Plot positive control bootstrapped distributions vs. noise
-# noise_params = [0., 3, 5, 10, 15, 25]
-noise_params = [0., 3]
+# noise_params = [0., 3., 5., 10., 15., 25.]
+noise_params = [0., 3.]
 
 pos_ctrls = {"sigma="+str(noise):model_validation(estimators=unfitted_models,
                                                   X=X_test, y=y_test,
@@ -260,18 +304,36 @@ pos_ctrls = {"sigma="+str(noise):model_validation(estimators=unfitted_models,
                                                   n_repeats=n_repeats,
                                                   sample_size=sample_size,
                                                   positive_ctrl=True,
-                                                  random_state=mv_seed)
+                                                  random_state=mv_seed,
+                                                  control_params={
+                                                      "sigma":noise})
              for noise in noise_params}
 
+# Create table of results and plot validation results
+pos_tab = pd.DataFrame()
+for key in pos_ctrls.keys():
+    col = float(key[(key.find("=")+1):])
+    tab = pd.DataFrame(data=validation_tab(pos_ctrls[key]),
+                       index=models, columns=[col])
+    pos_tab = pd.concat([pos_tab, tab], axis=1)
+    
+# Plot positive control results
+xp = np.arange(len(noise_params))
+width = 0.1
 
+fig, ax = plt.subplots(figsize=(8,8))
+plt.suptitle(r"Proportion of samples where $H_0$ was rejected", fontsize=16)
 
-# Negative control (uncorrelated control feature by permutation)
-# --------------------------------------------------------------
-# Plot negative control bootstrapped distributions
-neg_ctrl = model_validation(estimators=unfitted_models, X=X_test, y=y_test,
-                            scoring=scoring, n_samples=n_samples,
-                            sample_size=sample_size, n_repeats=n_repeats,
-                            positive_ctrl=False, random_state=mv_seed)
+for i, model in enumerate(models):
+    ax.bar(x=xp+(i*width), height=pos_tab.values[i, :], width=width,
+           color=[cmap[i]], edgecolor="white", label=model, alpha=0.75)
+    annotate_bar(ax.patches, dp=2)
+ax.set_ylim([0, 1])
+plt.xticks(ticks=xp+(len(noise_params)+1)*width,
+           labels=noise_params, rotation=0)
+plt.xlim(min(xp)-width, max(xp)+width*(len(models)+1))
+plt.legend(loc="upper right")
+plt.show()
 
 
 
