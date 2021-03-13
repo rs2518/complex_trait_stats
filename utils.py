@@ -244,75 +244,6 @@ def get_outlier_inds(a, threshold=8):
 
 
 
-def plot_true_vs_pred(y_true, y_pred, title=None, rm_outliers=False,
-                      marker=".", markercolor=None, edgecolor="w",
-                      ls="--", linecolor="red", **kwargs):
-    """Plot true y values against predicted y values
-    """
-    if title is None:
-        title = "True vs. Predicted"
-        
-    # Remove outliers
-    yt = np.array(y_true)
-    yp = np.array(y_pred)
-    out_text = ""
-    if rm_outliers:
-        ind = get_outlier_inds(yt)
-        yt = np.delete(yt, ind)
-        yp = np.delete(yp, ind)
-        
-        # Metrics excluding outliers
-        out_corr = np.corrcoef(yt, yp)[0,1]
-        out_sse = MSE(yt, yp) * len(yt)
-        out_text = "\n" + "\n".join((
-            r"$\rho\ (excl. outliers) = %.4f$" % (out_corr),
-            r"SSE (excl. outliers) = %.2f" % (out_sse)))
-        
-        if len(ind) > 0:
-            title = title + " (%d outliers excluded)" % (len(ind))
-        
-        
-    # Text box
-    # corr, p_value = pearsonr(y_true, y_pred)
-    # r2 = R2(y_true, y_pred)
-    # if np.isnan(corr):
-    #     corr = "-"
-    corr = np.corrcoef(y_true, y_pred)[0,1]
-    sse = MSE(y_true, y_pred) * len(y_true)
-    text = "\n".join((
-        r"$\rho = %.4f$" % (corr),
-        r"SSE = %.2f" % (sse)))
-    text = text + out_text
-    bbox = dict(facecolor='wheat', alpha=0.5)
-    
-    
-    # Set width of marker edge and line endpoints for better visuals
-    lw = 10/(len(yt)**0.25)
-    lim = [np.amin(np.array([yt, yp])), np.amax(np.array([yt, yp]))]
-    
-    fig = sns.JointGrid(x=yt, y=yp, xlim=lim, ylim=lim, height=10)
-    
-    fig.plot_joint(sns.regplot, marker="o",
-                       scatter_kws=dict(alpha=0.75, edgecolor="w", s=25),
-                       line_kws=dict(alpha=0.75, linewidth=0.6))
-    fig.plot_marginals(sns.kdeplot, shade=True,
-                       linewidth=lw,
-                       color="r")
-    
-    fig.ax_joint.plot(lim, lim, color="grey", linestyle="--", linewidth=lw)
-    fig.ax_joint.set_xlabel("True")
-    fig.ax_joint.set_ylabel("Predicted")
-    fig.ax_joint.text(0.05, 0.95, text, transform=fig.ax_joint.transAxes,
-                      verticalalignment="top", fontsize=12, bbox=bbox)
-    fig.ax_joint.set_title(title)
-
-    plt.tight_layout()
-    # plt.show()
-    
-    return fig
-
-
-
 # Stability analysis
 # ------------------
 
@@ -485,8 +416,8 @@ def coef_stats_dict(coef_dict, alpha=0.05):
     return coef_stats
 
 
-def plot_rf_feature_importance(forest, feature_names, ordered=None,
-                               title=None, **kwargs):
+def plot_rf_feature_importance(forest, feature_names, palette="hls",
+                               ordered=None, title=None, **kwargs):
     """Plots bar graph of feature importances for Random Forest
     
     NOTE: Feature importances often do not perform well for high cardinality
@@ -503,12 +434,18 @@ def plot_rf_feature_importance(forest, feature_names, ordered=None,
     elif ordered == "descending":
         sorted_idx = (-importances).argsort()
     
+    importances = forest.feature_importances_
+    cmap = sns.color_palette(palette=palette,
+                             n_colors=len(importances[importances > 0]),
+                             desat=.65)
+
     y_ticks = np.arange(0, len(feature_names))
     err = np.std([tree.feature_importances_ for tree in forest.estimators_],
                  axis=0)
     
     fig, ax = plt.subplots(figsize=(8,8))
-    ax.barh(y_ticks, importances[sorted_idx], xerr=err[sorted_idx], **kwargs)
+    ax.barh(y_ticks, importances[sorted_idx], xerr=err[sorted_idx],
+            color=cmap, **kwargs)
     ax.set_xlim(0,1)
     ax.set_yticklabels(feature_names[sorted_idx])
     ax.set_yticks(y_ticks)
@@ -590,7 +527,7 @@ def calculate_perm_scores(estimator, X, y, col_idx, random_state,
 def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
                     positive_ctrl=True, random_state=None,
                     return_fitted_estimators=False, control_params={}):
-    """Model validation for UNFITTED models
+    """Model validation for models
     
     Used to carry out internal validation on individual samples.
     
@@ -795,8 +732,8 @@ def _hypothesis_test(n, n_distribution, cut_off=0.05, return_p=False):
         return ind
     
     
-def validation_tab(results, cut_off=0.05):
-    """Results table of model validation results
+def _calculate_prop(results, cut_off=0.05):
+    """Calculate proportion of samples where null hypothesis is rejected
     """
     keys = list(results.keys())
     models = results[keys[0]].scores.columns
@@ -821,3 +758,157 @@ def validation_tab(results, cut_off=0.05):
     prop = a.sum(axis=0)/a.shape[0]
 
     return prop
+
+
+def tabulate_validation(results, positive_ctrl=True):
+    """Tabulate validation results
+    """
+    if positive_ctrl:
+        a = results[list(results.keys())[0]]
+        models = a[list(a.keys())[0]].scores.columns.to_list()
+        
+        # Loop through noise parameters if positive control
+        tab = pd.DataFrame()
+        for key in results.keys():
+            col = float(key[(key.find("=")+1):])
+            d = pd.DataFrame(data=_calculate_prop(results[key]),
+                             index=models, columns=[col])
+            tab = pd.concat([tab, d], axis=1)    
+    else:
+        models = results[list(results.keys())[0]].scores.columns.to_list()
+        
+        tab = pd.Series(data=_calculate_prop(results),
+                        index=models)
+        
+    return tab
+
+
+def tabulate_perm(results, labels=None):
+    """Tabulate permutation importance results
+    """
+    models = list(results.keys())
+    
+    # Loop through samples and collect mean importances for each model
+    tab = pd.DataFrame()
+    for model in models:
+        a = np.array([])
+        samples = list(results[model].keys())
+        for sample in samples:
+            means = results[model][sample].importances_mean
+            a = np.column_stack((a, means)) if a.size else means
+        
+        # Create column for model name
+        d = pd.DataFrame(a, columns=samples)
+        d["Feature"] = labels
+        d["Model"] = d.shape[0]*[model]
+        
+        tab = pd.concat([tab, d], axis=0, ignore_index=True)
+                
+    return tab
+
+
+def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
+                      title=None, figsize=(10, 10), palette="hls",
+                      **kwargs):
+    """Plot true y values against predicted y values
+    """
+    # Set plot arguments
+    if title is None:
+        title = "True vs. Predicted"
+    
+    models = preds.columns.to_list()[:-1]
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
+    markers = [".", "^", "D", "x", "+", "p", "s"]
+    lim = [1.05*min(preds.min()), 1.05*max(preds.max())]
+
+    # Plot true values vs. predictions for all models
+    fig, ax = plt.subplots(figsize=figsize)
+    for i, model in enumerate(models):
+        sns.regplot(x="Truths", y=model, data=preds,
+                    marker=markers[i], color=cmap[i],
+                    ax=ax, label=model, **kwargs)
+    plt.plot(lim, lim, color="grey", linestyle="--")
+    plt.xlim(lim)
+    plt.ylim(lim)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(loc="upper right")
+    plt.suptitle(title, fontsize=16)
+    
+    plt.tight_layout()   
+    # plt.show()
+    
+    return fig
+
+
+def plot_neg_validation(results, palette="hls", title=None, **kwargs):
+    """Bar plot for negative control validation results
+    """
+    # Set plot arguments
+    if title is None:
+        title = r"Proportion of samples where $H_0$ was rejected"
+    
+    models = results.index.to_list()
+    x = np.arange(len(models))
+    height = results.values
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.65)
+    
+    # Barplot for each model
+    fig, ax = plt.subplots(figsize=(8,8))
+        
+    ax.bar(x=x, height=height, color=cmap, **kwargs)
+    
+    def _annotate_bar(bars, dp=2):
+        """Annotate bar plot to user-defined no. of decimal places
+        """
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate("{:.{dp}f}".format(float(height), dp=dp),
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 1),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha="center", va="bottom")
+    
+    _annotate_bar(ax.patches, dp=2)    # Annotate each bar
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(models)
+    ax.set_ylim([0, 1])
+    plt.xticks(rotation=270)
+    plt.suptitle(title, fontsize=16)
+
+    plt.tight_layout()
+    # plt.show()
+    
+    return fig
+
+
+def plot_pos_validation(results, palette="hls", title=None, **kwargs):
+    """Bar plot for negative control validation results
+    """
+    # Set plot arguments
+    if title is None:
+        title = r"Proportion of samples where $H_0$ was rejected"
+    
+    models = results.index.to_list()
+    x = results.columns.to_list()
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.65)
+    
+    # Lineplot for each model
+    fig, ax = plt.subplots(figsize=(8,8))
+    
+    for i, model in enumerate(models):
+        y = results.values[i, :]
+        plt.plot(x, y, label=model, color=cmap[i], **kwargs)
+    
+    ax.set_xticks(x)
+    ax.set_ylim([0, 1.05])
+    plt.xlabel(r"Standard Deviation ($\sigma$)")
+    plt.ylabel("Proportion")
+    plt.legend(loc="upper right")
+    plt.suptitle(title, fontsize=16)
+    
+    plt.tight_layout()
+    # plt.show()    
+    
+    return fig

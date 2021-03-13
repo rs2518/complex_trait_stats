@@ -43,8 +43,11 @@ from complex_trait_stats.utils import (coef_dict,
                                        metrics,
                                        plot_true_vs_pred,
                                        cv_table,
-                                       validation_tab,
-                                       plot_rf_feature_importance)
+                                       tabulate_validation,
+                                       tabulate_perm,
+                                       plot_rf_feature_importance,
+                                       plot_neg_validation,
+                                       plot_pos_validation)
 
 
 
@@ -209,12 +212,9 @@ fig.savefig(os.path.join(stab_figpath, "mean_coef_heatmap.png"),
             bbox_inches="tight")
 
 # Plot random forest importances
-rf_importances = rf.best_estimator_.feature_importances_
-cmap = sns.hls_palette(len(rf_importances[rf_importances > 0]), l=.55)
-
 fig = plot_rf_feature_importance(forest=rf.best_estimator_,
                                  title="Random Forest feature importances",
-                                 color=cmap, feature_names=X.columns,
+                                 feature_names=X.columns,
                                  ordered="ascending")
 fig.savefig(os.path.join(stab_figpath, "rf_importances.png"),
             bbox_inches="tight")
@@ -240,7 +240,6 @@ mlp_cv = cv_table(mlp.cv_results_, ordered=sort)
 
 # Negative control (permuted labels)
 # ----------------------------------
-
 # Set iterables and create barplot annotation function
 n_samples = 3
 sample_size = 0.3
@@ -248,92 +247,42 @@ n_repeats = 5
 mv_seed = 1
 scoring = "r2"
 
-def annotate_bar(bars, dp=2):
-    """Annotate bar plot with bar height to 'dp' decimal places
-    """
-    for bar in bars:
-        height = bar.get_height()
-        ax.annotate("{:.{dp}f}".format(float(height), dp=dp),
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 1),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha="center", va="bottom")
-
-# Negative control over bootstrapped distributions
+# Negative control validation over bootstrapped samples
 neg_ctrl = model_validation(estimators=fitted_models, X=X_test, y=y_test,
                             scoring=scoring, n_samples=n_samples,
                             sample_size=sample_size, n_repeats=n_repeats,
                             positive_ctrl=False, random_state=mv_seed)
 
-# Set model names and colormap
-models = neg_ctrl[list(neg_ctrl.keys())[0]].scores.columns.to_list()
-cmap = sns.hls_palette(len(models), l=.55)
-
-# Create table of results and plot validation results
-neg_results = validation_tab(neg_ctrl)
-neg_tab = pd.Series(data=neg_results, index=models)
-
 # Plot negative control results
-xn = np.arange(len(models))
-
-fig, ax = plt.subplots(figsize=(8,8))
-plt.suptitle(r"Proportion of samples where $H_0$ was rejected", fontsize=16)
-
-ax.bar(x=xn, height=neg_tab.values, width=1,
-       color=cmap)
-ax.set_xticks(xn)
-ax.set_xticklabels(models)
-ax.set_ylim([0, 1])
-annotate_bar(ax.patches, dp=2)    # Annotate bar plot
-plt.xticks(rotation=270)
-plt.show()
+neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False)
+fig = plot_neg_validation(neg_results)
+figpath = os.path.join(eval_figpath, "negative_control_validation.png")
+fig.savefig(figpath)
 
 
 
 # Positive control (perfectly correlated control feature)
 # -------------------------------------------------------
+# Positive control validation vs. noise over bootstrapped samples
+noise_params = [0., 3., 5., 10., 15., 25.]
 
-# Plot positive control bootstrapped distributions vs. noise
-# noise_params = [0., 3., 5., 10., 15., 25.]
-noise_params = [0., 3.]
+pos_ctrl = {"sigma="+str(noise):model_validation(estimators=unfitted_models,
+                                                 X=X_test, y=y_test,
+                                                 scoring=scoring,
+                                                 n_samples=n_samples,
+                                                 n_repeats=n_repeats,
+                                                 sample_size=sample_size,
+                                                 positive_ctrl=True,
+                                                 random_state=mv_seed,
+                                                 control_params={
+                                                     "sigma":noise})
+            for noise in noise_params}
 
-pos_ctrls = {"sigma="+str(noise):model_validation(estimators=unfitted_models,
-                                                  X=X_test, y=y_test,
-                                                  scoring=scoring,
-                                                  n_samples=n_samples,
-                                                  n_repeats=n_repeats,
-                                                  sample_size=sample_size,
-                                                  positive_ctrl=True,
-                                                  random_state=mv_seed,
-                                                  control_params={
-                                                      "sigma":noise})
-             for noise in noise_params}
-
-# Create table of results and plot validation results
-pos_tab = pd.DataFrame()
-for key in pos_ctrls.keys():
-    col = float(key[(key.find("=")+1):])
-    tab = pd.DataFrame(data=validation_tab(pos_ctrls[key]),
-                       index=models, columns=[col])
-    pos_tab = pd.concat([pos_tab, tab], axis=1)
-    
 # Plot positive control results
-xp = np.arange(len(noise_params))
-width = 0.1
-
-fig, ax = plt.subplots(figsize=(8,8))
-plt.suptitle(r"Proportion of samples where $H_0$ was rejected", fontsize=16)
-
-for i, model in enumerate(models):
-    ax.bar(x=xp+(i*width), height=pos_tab.values[i, :], width=width,
-           color=[cmap[i]], edgecolor="white", label=model, alpha=0.75)
-    annotate_bar(ax.patches, dp=2)
-ax.set_ylim([0, 1])
-plt.xticks(ticks=xp+(len(noise_params)+1)*width,
-           labels=noise_params, rotation=0)
-plt.xlim(min(xp)-width, max(xp)+width*(len(models)+1))
-plt.legend(loc="upper right")
-plt.show()
+pos_results = tabulate_validation(pos_ctrl, positive_ctrl=True)
+fig = plot_pos_validation(pos_results, linestyle="--", marker="x")
+figpath = os.path.join(eval_figpath, "positive_control_validation.png")
+fig.savefig(figpath)
 
 
 
@@ -341,9 +290,11 @@ plt.show()
 # ----------------------
 # Permutation importances for each feature
 perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
-                         n_repeats=2, random_state=mv_seed)
+                         n_samples=n_samples, n_repeats=n_repeats,
+                         random_state=mv_seed)
+perm_tab = tabulate_perm(perms, X.columns)
 
-# perm_tab = perm_table(perms)
+# PLOT FOR PERMUTATION IMPORTANCES HERE???
 
 
 
@@ -356,23 +307,16 @@ perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
 # Get model predictions
 predictions = {key:model.predict(X_test).ravel()
                for (key, model) in zip(perms.keys(), fitted_models)}
+pred_df = pd.DataFrame(predictions)
+pred_df["Truths"] = y_test.values
 
+# Plot true values vs. predictions for all models
+fig = plot_true_vs_pred(pred_df,
+                        scatter_kws=dict(alpha=0.5, edgecolor="w"),
+                        line_kws=dict(linewidth=0.85))
+figpath = os.path.join(eval_figpath, "true_vs_pred.png")
+fig.savefig(figpath)
 
-# Plot true values vs. predictions and metric tables for all models
-metric_df = pd.DataFrame()
-for key, y_pred in predictions.items():
-    
-    fig = plot_true_vs_pred(y_test, y_pred, title=key)
-    
-    name = key.lower() + "_true_vs_pred_plot.png"
-    figpath = os.path.join(eval_figpath, name)
-    fig.savefig(figpath)
-    
-    # Metrics table data
-    metric_df = metric_df.append(metrics(y_test, y_pred), ignore_index=True)
-
-metric_df.index = predictions.keys()
-# metrics_table = plt.table(cellText=metric_df)
 
 
 # Linear coefficient plots
