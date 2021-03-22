@@ -247,10 +247,15 @@ mv_seed = 1
 scoring = "r2"
 
 # Negative control validation over bootstrapped samples
-neg_ctrl = model_validation(estimators=fitted_models, X=X_test, y=y_test,
-                            scoring=scoring, n_samples=n_samples,
-                            sample_size=sample_size, n_repeats=n_repeats,
-                            positive_ctrl=False, random_state=mv_seed)
+neg_ctrl = {version:model_validation(estimators=fitted_models,
+                                     X=X_test, y=y_test,
+                                     scoring=scoring, n_samples=n_samples,
+                                     sample_size=sample_size,
+                                     n_repeats=n_repeats,
+                                     positive_ctrl=False,
+                                     random_state=mv_seed,
+                                     version=version)
+            for version in ["tpr", "fpr"]}
 
 # Plot negative control results
 neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False)

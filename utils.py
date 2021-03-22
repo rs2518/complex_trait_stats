@@ -23,6 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from scipy.stats import zscore
 from scipy.stats import pearsonr, entropy
+from statsmodels.stats.multitest import multipletests
 
 from sklearn.inspection._permutation_importance import \
     _calculate_permutation_scores
@@ -529,7 +530,7 @@ def calculate_perm_scores(estimator, X, y, col_idx, random_state,
 
     
 def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
-                    positive_ctrl=True, random_state=None,
+                    positive_ctrl=True, random_state=None, version="fn",
                     return_fitted_estimators=False, control_params={}):
     """Model validation for models
     
@@ -538,12 +539,19 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
     Returns dataframe of differences between the permuted scores and baseline
     score for the given estimator after fitting on the data.
     Optionally returns dictionary of estimators (after fitting with additional
-    control feature) and baseline scores if return_fitted_estimators=True
+    control feature) and baseline scores if return_fitted_estimators=True.
+    
+    For negative control validation (i.e. positive_ctrl=False), 'version'
+    returns information on the true positive rate 'tpr' or the false positive
+    rate 'fpr'
     """    
     if not hasattr(estimators, "__iter__"):
         estimators = [estimators]
     # if random_state is not None:
     #     control_params["random_state"] = random_state
+    
+    # Initial seed generator using random_state
+    r = check_random_state(random_state)
     
     # Check if bool
     if type(positive_ctrl) != bool:
@@ -577,17 +585,28 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
             estimator.set_params(input_dim=Xs.shape[1])
         else:
             models.append(type(estimator).__name__)
-
+            
+        scorer = check_scoring(estimator, scoring=scoring)
+        
         if positive_ctrl:
             estimator.fit(Xs, ys)
-        scorer = check_scoring(estimator, scoring=scoring)
-        baseline_scores[i] = scorer(estimator, Xs, ys)
+            baseline_scores[i] = scorer(estimator, Xs, ys)
+        else:
+            if version == "tpr":
+                baseline_scores[i] = scorer(estimator, Xs, ys)
+            elif version == "fpr":
+                init_seed = r.randint(np.iinfo(np.int32).max)
+                baseline_scores[i] = \
+                    _calculate_perm_labels(estimator=estimator, X=Xs, y=ys,
+                                           random_state=init_seed,
+                                           n_repeats=1, scorer=scorer)[0]
         
         scores[:,i] = \
             calculate_perm_scores(estimator=estimator, X=Xs, y=ys,
                                   col_idx=Xs.shape[1]-1,
                                   random_state=random_state,
-                                  n_repeats=n_repeats, scorer=scorer)
+                                  n_repeats=n_repeats, scorer=scorer,
+                                  positive_ctrl=positive_ctrl)
     
         # # Calculate difference in baseline and permuted scores
         # scores[:,i] = baseline_scores[i] - scores[:,i]
@@ -714,30 +733,9 @@ def get_p(n, n_distribution, alpha=0.05):
     
     return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
 
-
-def _hypothesis_test(n, n_distribution, cut_off=0.05, return_p=False):
-    """Non-parametric hypothesis test
-    
-    Default cut-off percentile is 'cut_off=0.05'. If 'return_p=True', return
-    the generated p-value.
-    """
-    # Perform statistical test
-    p = get_p(n=n, n_distribution=n_distribution).p_val
-    
-    # Test if p-value exceeds cut-off
-    if p <= cut_off:
-        ind = 1
-    else:
-        ind = 0
-    
-    if return_p:
-        return ind, p
-    else:
-        return ind
-    
-    
-def _calculate_prop(results, cut_off=0.05):
-    """Calculate proportion of samples where null hypothesis is rejected
+ 
+def _calculate_prop(results, alpha=0.05, **kwargs):
+    """Calculate combined p-value across all samples
     """
     keys = list(results.keys())
     models = results[keys[0]].scores.columns
@@ -753,36 +751,37 @@ def _calculate_prop(results, cut_off=0.05):
         scores = results[keys[sample]].scores.values
         
         # Loop over models
-        a[sample, :] = np.array([_hypothesis_test(n=baseline_scores[i],
-                                                  n_distribution=scores[:, i],
-                                                  cut_off=cut_off,
-                                                  return_p=False)
+        a[sample, :] = np.array([get_p(n=baseline_scores[i],
+                                       n_distribution=scores[:, i]).p_val
                                  for i in range(n_models)])
+            
+    # Correct p-value for each model
+    p = np.zeros_like(a)
+    inds = np.zeros_like(a)
+    for model in range(n_models):
+        inds[:, model],  p[:, model], _, _ =\
+            multipletests(a[:, model], alpha=alpha, **kwargs)
     
-    prop = a.sum(axis=0)/a.shape[0]
-
-    return prop
+    return inds.sum(axis=0)/inds.shape[0]
 
 
-def tabulate_validation(results, positive_ctrl=True):
+def tabulate_validation(results, positive_ctrl=True, **kwargs):
     """Tabulate validation results
     """
-    if positive_ctrl:
-        a = results[list(results.keys())[0]]
-        models = a[list(a.keys())[0]].scores.columns.to_list()
-        
-        # Loop through noise parameters if positive control
-        tab = pd.DataFrame()
-        for key in results.keys():
+    a = results[list(results.keys())[0]]
+    models = a[list(a.keys())[0]].scores.columns.to_list()
+    
+    # Loop through noise parameters if positive control
+    tab = pd.DataFrame()
+    for key in results.keys():
+        if positive_ctrl:
             col = float(key[(key.find("=")+1):])
-            d = pd.DataFrame(data=_calculate_prop(results[key]),
-                             index=models, columns=[col])
-            tab = pd.concat([tab, d], axis=1)    
-    else:
-        models = results[list(results.keys())[0]].scores.columns.to_list()
-        
-        tab = pd.Series(data=_calculate_prop(results),
-                        index=models)
+        else:
+            col = key
+        d = pd.DataFrame(data=_calculate_prop(results[key],
+                                              **kwargs),
+                         index=models, columns=[col])
+        tab = pd.concat([tab, d], axis=1)    
         
     return tab
 
@@ -862,40 +861,43 @@ def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
     return fig
 
 
-def plot_neg_validation(results, palette="hls", title=None, **kwargs):
+def plot_neg_validation(results, palette="hls", **kwargs):
     """Bar plot for negative control validation results
     """
     # Set plot arguments
-    if title is None:
-        title = r"Proportion of samples where $H_0$ was rejected"
+    title = r"Proportion of samples where $H_0$ was rejected"
+    sub_titles = {"tpr":"True Positive Rate",
+                  "fpr":"False Positive Rate"}
     
     models = results.index.to_list()
     x = np.arange(len(models))
     height = results.values
-    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.65)
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
     
     # Barplot for each model
-    fig, ax = plt.subplots(figsize=(8,8))
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,6), sharey=True,
+                           gridspec_kw={"wspace":0.2})
         
-    ax.bar(x=x, height=height, color=cmap, **kwargs)
-    
-    def _annotate_bar(bars, dp=2):
-        """Annotate bar plot to user-defined no. of decimal places
-        """
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate("{:.{dp}f}".format(float(height), dp=dp),
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 1),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha="center", va="bottom")
-    
-    _annotate_bar(ax.patches, dp=2)    # Annotate each bar
-    
-    ax.set_xticks(x)
-    ax.set_xticklabels(models)
-    ax.set_ylim([0, 1])
-    plt.xticks(rotation=270)
+    for i, col in enumerate(results.columns.to_list()):
+        ax[i].bar(x=x, height=height[:, i], color=cmap, **kwargs) 
+        
+        def _annotate_bar(bars, dp=2):
+            """Annotate bar plot to user-defined no. of decimal places
+            """
+            for bar in bars:
+                height = bar.get_height()
+                ax[i].annotate("{:.{dp}g}".format(float(height), dp=dp),
+                               xy=(bar.get_x() + bar.get_width() / 2, height),
+                               xytext=(0, 1),  # 3 points vertical offset
+                               textcoords="offset points",
+                               ha="center", va="bottom")
+        
+        _annotate_bar(ax[i].patches, dp=2)    # Annotate each bar
+        ax[i].set_xticks(x)
+        ax[i].set_xticklabels(models, rotation=270)
+        ax[i].set_ylim([0, 1.05])
+        ax[i].set_title(sub_titles[col])
+        
     plt.suptitle(title, fontsize=16)
 
     plt.tight_layout()
@@ -913,7 +915,7 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
     
     models = results.index.to_list()
     x = results.columns.to_list()
-    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.65)
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
     
     # Lineplot for each model
     fig, ax = plt.subplots(figsize=(8,8))
