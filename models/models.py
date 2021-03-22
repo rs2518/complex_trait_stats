@@ -13,8 +13,6 @@ import os
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet
@@ -44,7 +42,8 @@ from complex_trait_stats.utils import (coef_dict,
                                        plot_true_vs_pred,
                                        cv_table,
                                        tabulate_validation,
-                                       tabulate_perm,
+                                       perm_dict,
+                                       plot_perm_importance,
                                        plot_rf_feature_importance,
                                        plot_neg_validation,
                                        plot_pos_validation)
@@ -292,9 +291,13 @@ fig.savefig(figpath)
 perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
                          n_samples=n_samples, n_repeats=n_repeats,
                          random_state=mv_seed)
-perm_tab = tabulate_perm(perms, X.columns)
 
-# PLOT FOR PERMUTATION IMPORTANCES HERE???
+# Plot permutation importances
+# perm_tab = tabulate_perm(perms, X.columns)
+perm_tab = perm_dict(perms, X.columns)
+fig = plot_perm_importance(perm_tab)
+figpath = os.path.join(eval_figpath, "permutation_importances.png")
+fig.savefig(figpath)
 
 
 

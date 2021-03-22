@@ -1,14 +1,17 @@
 import os
+import math
 
 import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import scipy.cluster.hierarchy as sch
 
 # from joblib import Parallel
 # from joblib import delayed
 
+from collections import Counter
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.metrics import mean_absolute_error as MAE
 from sklearn.metrics import explained_variance_score as explained_var
@@ -19,6 +22,7 @@ from sklearn.metrics import r2_score as R2
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from scipy.stats import zscore
+from scipy.stats import pearsonr, entropy
 
 from sklearn.inspection._permutation_importance import \
     _calculate_permutation_scores
@@ -507,7 +511,7 @@ def _calculate_perm_labels(estimator, X, y, random_state, n_repeats, scorer):
 
 
 def calculate_perm_scores(estimator, X, y, col_idx, random_state,
-                          n_repeats, scorer, positive_ctrl=True):
+                          n_repeats, scorer, positive_ctrl):
     """General permutation score algorithm
     
     If 'positive_ctrl=True', permute X. Otherwise, permute y
@@ -783,28 +787,45 @@ def tabulate_validation(results, positive_ctrl=True):
     return tab
 
 
-def tabulate_perm(results, labels=None):
-    """Tabulate permutation importance results
+def perm_dict(results, labels=None):
+    """Convert permutation importance results into dictionary
     """
     models = list(results.keys())
     
     # Loop through samples and collect mean importances for each model
-    tab = pd.DataFrame()
+    d = {}
     for model in models:
         a = np.array([])
         samples = list(results[model].keys())
         for sample in samples:
             means = results[model][sample].importances_mean
             a = np.column_stack((a, means)) if a.size else means
-        
-        # Create column for model name
-        d = pd.DataFrame(a, columns=samples)
-        d["Feature"] = labels
-        d["Model"] = d.shape[0]*[model]
-        
-        tab = pd.concat([tab, d], axis=0, ignore_index=True)
+        d[model] = pd.DataFrame(a.T, index=samples, columns=labels)
                 
-    return tab
+    return d
+
+
+# def tabulate_perm(results, labels=None):
+#     """Tabulate permutation importance results
+#     """
+#     models = list(results.keys())
+    
+#     # Loop through samples and collect mean importances for each model
+#     tab = pd.DataFrame()
+#     for model in models:
+#         a = np.array([])
+#         samples = list(results[model].keys())
+#         for sample in samples:
+#             means = results[model][sample].importances_mean
+#             a = np.column_stack((a, means)) if a.size else means
+        
+#         # Create column for model name
+#         d = pd.DataFrame(a.T, columns=labels)
+#         d["Model"] = d.shape[0]*[model]
+        
+#         tab = pd.concat([tab, d], axis=0, ignore_index=True)
+                
+#     return tab
 
 
 def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
@@ -910,5 +931,239 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
     
     plt.tight_layout()
     # plt.show()    
+    
+    return fig
+
+
+def plot_perm_importance(results, palette="hls", n_colors=8,
+                         title=None, **kwargs):
+    """Plot grid of permutation importances for each model
+    """
+    # Set plot arguments. Cycle over colors
+    models = list(results.keys())
+    n_features = results[models[0]].shape[1]
+    colors = list(sns.color_palette(palette=palette, n_colors=n_colors,
+                                    desat=.65))
+    cmap = [colors[i%n_colors] for i in range(n_features)]
+    # from matplotlib.colors import Colormap
+    # cmap = Colormap([colors[i%n_colors] for i in range(n_features)])
+    
+    # Grid of catplots
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(15, 15))
+    
+    for i, model in enumerate(models):
+        # Melt scores data into long format for strip plot
+        data = pd.melt(results[model], var_name="Feature", value_name="Score")
+        sns.stripplot(x=data["Score"].values, y=data["Feature"],
+                      color=cmap, palette=palette, jitter=.0,
+                      ax=axes[i//3, i%3], **kwargs)
+        
+        axes[i//3, i%3].set_title(model)
+        axes[i//3, i%3].set_xscale('symlog')
+        axes[i//3, i%3].minorticks_off()
+        
+    # Final subplot in middle column and remove empty subplots
+    data = pd.melt(results[models[-1]], var_name="Feature", value_name="Score")
+    sns.stripplot(x=data["Score"].values, y=data["Feature"],
+                  color=cmap, palette=palette, jitter=.0,
+                  ax=axes[2, 1], **kwargs)
+    axes[2, 1].set_title(models[-1])
+    axes[2, 1].set_xscale('symlog')
+    axes[2, 1].minorticks_off()
+    axes[2, 0].remove()
+    axes[2, 2].remove()
+    plt.suptitle(title, fontsize=16)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return fig
+
+
+
+# Exploratory Data Analysis
+# -------------------------
+
+def _conditional_entropy(x,y):
+    """Conditional entropy
+    
+    Code originally from dython package:
+    https://github.com/shakedzy/dython/blob/master/dython/nominal.py
+        
+    For more information, see:
+    https://towardsdatascience.com/the-search-for-categorical-correlation-a1cf7f1888c9?gi=f05f03ff513a
+    """
+    # entropy of x given y
+    y_counter = Counter(y)
+    xy_counter = Counter(list(zip(x,y)))
+    total_occurrences = sum(y_counter.values())
+    ent = 0
+    for xy in xy_counter.keys():
+        p_xy = xy_counter[xy] / total_occurrences
+        p_y = y_counter[xy[1]] / total_occurrences
+        ent += p_xy * math.log(p_y/p_xy)
+        
+    return ent
+
+
+def theil_u(x,y):
+    """Categorical-Categorical interaction
+    
+    Code originally from dython package:
+    https://github.com/shakedzy/dython/blob/master/dython/nominal.py
+        
+    For more information, see:
+    https://towardsdatascience.com/the-search-for-categorical-correlation-a1cf7f1888c9?gi=f05f03ff513a
+    """
+    s_xy = _conditional_entropy(x,y)
+    x_counter = Counter(x)
+    total_occurrences = sum(x_counter.values())
+    p_x = list(map(lambda n: n/total_occurrences, x_counter.values()))
+    s_x = entropy(p_x)
+    
+    if s_x == 0:
+        return 1
+    else:
+        return (s_x - s_xy) / s_x
+
+
+def correlation_ratio(categories, measurements):
+    """Continuous-Categorical interaction
+    
+    Code originally from dython package:
+    https://github.com/shakedzy/dython/blob/master/dython/nominal.py
+        
+    For more information, see:
+    https://towardsdatascience.com/the-search-for-categorical-correlation-a1cf7f1888c9?gi=f05f03ff513a
+    """
+    fcat, _ = pd.factorize(categories)
+    cat_num = np.max(fcat)+1
+    y_avg_array = np.zeros(cat_num)
+    n_array = np.zeros(cat_num)
+    for i in range(0,cat_num):
+        cat_measures = measurements[np.argwhere(fcat == i).flatten()]
+        n_array[i] = len(cat_measures)
+        y_avg_array[i] = np.average(cat_measures)
+    y_total_avg = np.sum(np.multiply(y_avg_array,n_array))/np.sum(n_array)
+    numerator = np.sum(
+        np.multiply(n_array,np.power(np.subtract(y_avg_array,y_total_avg),2)))
+    denominator = np.sum(np.power(np.subtract(measurements,y_total_avg),2))
+    if numerator == 0:
+        eta = 0.0
+    else:
+        eta = np.sqrt(numerator/denominator)
+    return eta
+
+
+def compute_assoc(dataset, nominal_columns, clustering=False):
+    """Compute correlation/associations
+    
+    Calculate the correlation/strength-of-association of features in data-set
+    with both categorical and continuous features using:
+     * Pearson's R for continuous-continuous cases
+     * Correlation Ratio for categorical-continuous cases
+     * Theil's U for categorical-categorical cases
+    
+    Code originally from dython package:
+    https://github.com/shakedzy/dython/blob/master/dython/nominal.py
+        
+    For more information, see:
+    https://towardsdatascience.com/the-search-for-categorical-correlation-a1cf7f1888c9?gi=f05f03ff513a
+    """
+    columns = dataset.columns
+    nominal_columns = dataset.select_dtypes(
+        include=["object", "category"]).columns.to_list()
+
+    corr = pd.DataFrame(index=columns, columns=columns)
+    single_value_columns = []
+    
+    for c in columns:
+        if dataset[c].unique().size == 1:
+            single_value_columns.append(c)
+    for i in range(0, len(columns)):
+        if columns[i] in single_value_columns:
+            corr.loc[:, columns[i]] = 0.0
+            corr.loc[columns[i], :] = 0.0
+            continue
+        for j in range(i, len(columns)):
+            if columns[j] in single_value_columns:
+                continue
+            elif i == j:
+                corr.loc[columns[i], columns[j]] = 1.0
+            else:
+                if columns[i] in nominal_columns:
+                    if columns[j] in nominal_columns:
+                        ji = theil_u(
+                            dataset[columns[i]],
+                            dataset[columns[j]])
+                        ij = theil_u(
+                            dataset[columns[j]],
+                            dataset[columns[i]])
+                    else:
+                        cell = correlation_ratio(dataset[columns[i]],
+                                                 dataset[columns[j]])
+                        ij = cell
+                        ji = cell
+                else:
+                    if columns[j] in nominal_columns:
+                        cell = correlation_ratio(dataset[columns[j]],
+                                                 dataset[columns[i]])
+                        ij = cell
+                        ji = cell
+                    else:
+                        cell, _ = pearsonr(dataset[columns[i]],
+                                           dataset[columns[j]])
+                        ij = cell
+                        ji = cell
+                corr.loc[columns[i], columns[j]] = \
+                    ij if not np.isnan(ij) and abs(ij) < np.inf else 0.0
+                corr.loc[columns[j], columns[i]] = \
+                    ji if not np.isnan(ji) and abs(ji) < np.inf else 0.0
+    # Convert to numeric array
+    corr = pd.DataFrame(corr.values, index=columns, columns=columns,
+                        dtype="float")
+    if clustering:
+        corr, _ = cluster_correlations(corr)
+        columns = corr.columns
+        
+    return corr, columns, nominal_columns, single_value_columns
+
+
+def cluster_correlations(corr_mat, indices=None):
+    """Apply agglomerative clustering in order to sort a correlation matrix.
+    
+    Originally based on:
+    https://github.com/TheLoneNut/CorrelationMatrixClustering/blob/master/CorrelationMatrixClustering.ipynb
+    
+    Adapted version taken from:
+    https://github.com/shakedzy/dython/blob/master/dython/nominal.py
+    
+    For more information, see:
+    https://towardsdatascience.com/the-search-for-categorical-correlation-a1cf7f1888c9?gi=f05f03ff513a
+    """
+    if indices is None:
+        X = corr_mat.values
+        d = sch.distance.pdist(X)
+        L = sch.linkage(d, method='complete')
+        indices = sch.fcluster(L, 0.5 * d.max(), 'distance')
+    columns = [corr_mat.columns.tolist()[i]
+               for i in list((np.argsort(indices)))]
+    corr_mat = corr_mat.reindex(columns=columns).reindex(index=columns)
+    return corr_mat, indices
+
+
+def plot_corr_heatmap(corr, **kwargs):
+    """Plot heatmap of correlations/associations across features
+    """    
+    fig, ax = plt.subplots(figsize=(8,8))
+    # plt.suptitle(title, fontsize=16)
+    
+    sns.heatmap(data=corr, vmin=-1, vmax=1, cmap="vlag", ax=ax, **kwargs)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
+    # ax.set_xlabel("Model")
+    # ax.set_ylabel("Features")
+    
+    plt.tight_layout()
+    # plt.show()
     
     return fig

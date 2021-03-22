@@ -11,15 +11,9 @@ sys.path.append(path)
 
 import os
 
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder
-
 from complex_trait_stats.utils import ROOT, RAW_DATA
 from complex_trait_stats.utils import load_dataframe, process_data
-
+from complex_trait_stats.utils import compute_assoc, plot_corr_heatmap
 
 
 # Define directories (and create if non-existent) to save plots
@@ -35,17 +29,11 @@ if not os.path.exists(eda_figpath):
 df = load_dataframe(RAW_DATA)
 # data = process_data(df)
 
-# Process categories with label encoder
-le = LabelEncoder()
-cat_cols = df.select_dtypes(include=["category"]).columns
-df[cat_cols] = le.fit_transform(df[cat_cols])
 
-# Split data into features and labels
-X = df.drop(['p_value'], axis=1)
-y = -np.log10(df["p_value"])
+# Plot correlation heatmap
+cat_cols = df.select_dtypes(include=["object", "category"]).columns.to_list()
 
-corr = df.iloc[:, :-1].corr()
-sns.heatmap(corr,
-            xticklabels=corr.columns,
-            yticklabels=corr.columns)
-plt.show()
+corr, _, _, _ = compute_assoc(df, cat_cols, clustering=True)
+fig = plot_corr_heatmap(corr)
+figpath = os.path.join(eda_figpath, "association_heatmap.png")
+fig.savefig(figpath)
