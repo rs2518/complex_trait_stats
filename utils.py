@@ -1160,10 +1160,34 @@ def plot_corr_heatmap(corr, **kwargs):
     fig, ax = plt.subplots(figsize=(8,8))
     # plt.suptitle(title, fontsize=16)
     
-    sns.heatmap(data=corr, vmin=-1, vmax=1, cmap="vlag", ax=ax, **kwargs)
+    sns.heatmap(data=corr, ax=ax, **kwargs)
     # ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
     # ax.set_xlabel("Model")
     # ax.set_ylabel("Features")
+    
+    plt.tight_layout()
+    # plt.show()
+    
+    return fig
+
+
+def plot_log_p_value(data, **kwargs):
+    """Plot distribution of p-values
+    """
+    sub_titles = {"p_value":"Raw p-values",
+                  "log_p":"Log-transformed p-values"}
+    
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5),
+                             gridspec_kw={"wspace":0.4})
+    
+    for i, col in enumerate(sub_titles.keys()):
+        sns.kdeplot(data=data[col], ax=axes[i], legend=False, **kwargs)
+        axes[i].set_title(sub_titles[col])
+        if col == "p_value":
+            axes[i].set_xlim(0, 1)
+        else:
+            lim = np.amax(data[col])
+            axes[i].set_xlim(0, lim*1.03)
     
     plt.tight_layout()
     # plt.show()
