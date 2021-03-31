@@ -245,6 +245,7 @@ sample_size = 0.3
 n_repeats = 5
 mv_seed = 1
 scoring = "r2"
+correction = "fdr_bh"
 
 # Negative control validation over bootstrapped samples
 neg_ctrl = {version:model_validation(estimators=fitted_models,
@@ -258,7 +259,8 @@ neg_ctrl = {version:model_validation(estimators=fitted_models,
             for version in ["tpr", "fpr"]}
 
 # Plot negative control results
-neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False)
+neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False,
+                                  method=correction)
 fig = plot_neg_validation(neg_results)
 figpath = os.path.join(eval_figpath, "negative_control_validation.png")
 fig.savefig(figpath)
@@ -283,7 +285,8 @@ pos_ctrl = {"sigma="+str(noise):model_validation(estimators=unfitted_models,
             for noise in noise_params}
 
 # Plot positive control results
-pos_results = tabulate_validation(pos_ctrl, positive_ctrl=True)
+pos_results = tabulate_validation(pos_ctrl, positive_ctrl=True,
+                                  method=correction)
 fig = plot_pos_validation(pos_results, linestyle="--", marker="x")
 figpath = os.path.join(eval_figpath, "positive_control_validation.png")
 fig.savefig(figpath)

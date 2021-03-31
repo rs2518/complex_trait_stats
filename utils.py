@@ -759,7 +759,7 @@ def _calculate_prop(results, alpha=0.05, **kwargs):
     p = np.zeros_like(a)
     inds = np.zeros_like(a)
     for model in range(n_models):
-        inds[:, model],  p[:, model], _, _ =\
+        inds[:, model],  p[:, model], _, _ = \
             multipletests(a[:, model], alpha=alpha, **kwargs)
     
     return inds.sum(axis=0)/inds.shape[0]
@@ -950,7 +950,7 @@ def plot_perm_importance(results, palette="hls", n_colors=8,
     # from matplotlib.colors import Colormap
     # cmap = Colormap([colors[i%n_colors] for i in range(n_features)])
     
-    # Grid of catplots
+    # Grid of stripplots
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(15, 15))
     
     for i, model in enumerate(models):
