@@ -7,32 +7,38 @@ source ~/.bash_profile
 CWD=$(pwd)
 DIRECTORY=$(dirname $0)
 
-# echo "";
-# echo "-----------------------------------------------------------";
-# echo "";
-# echo "Downloading databases";
-# echo "";
-# echo "";
-# echo "-----------------------------------------------------------";
-# echo "";
-# echo "";
 
 cd "$DIRECTORY/annovar"
-# annotate_variation.pl -buildver hg19 -downdb -webfrom annovar refGene humandb/
-# annotate_variation.pl -buildver hg19 -downdb cytoBand humandb/
-# annotate_variation.pl -buildver hg19 -downdb -webfrom annovar exac03 humandb/ 
-# annotate_variation.pl -buildver hg19 -downdb -webfrom annovar avsnp147 humandb/ 
-# annotate_variation.pl -buildver hg19 -downdb -webfrom annovar dbnsfp30a humandb/
 
-
-
-
-# cd "$CWD"
 
 # echo "";
 # echo "-----------------------------------------------------------";
 # echo "";
-# echo "Done!";
+# echo "Downloading databases (hg19 - build 1)";
+# echo "";
 # echo "";
 # echo "-----------------------------------------------------------";
 # echo "";
+# echo "";
+
+perl table_annovar.pl ../ga_snps.txt humandb/ -buildver hg38 -out ga_anno -remove -protocol refGene,cytoBand,exac03,avsnp147,dbnsfp30a -operation gx,r,f,f,f -nastring - -csvout -polish -xref example/gene_fullxref.txt
+
+# echo "";
+# echo "-----------------------------------------------------------";
+# echo "";
+# echo "Annotating dataset";
+# echo "";
+# echo "";
+# echo "-----------------------------------------------------------";
+# echo "";
+# echo "";
+
+cd "$CWD"
+
+echo "";
+echo "-----------------------------------------------------------";
+echo "";
+echo "Done!";
+echo "";
+echo "-----------------------------------------------------------";
+echo "";

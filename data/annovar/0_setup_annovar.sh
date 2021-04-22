@@ -39,8 +39,29 @@ tar xvf annovar.tar
 # echo "";
 
 # wget https://github.com/WGLab/Workshop_Annotation/releases/download/v1.0.0/exercise1.zip
-
 # unzip -a exercise1.zip
+
+echo "";
+echo "-----------------------------------------------------------";
+echo "";
+echo "Downloading databases (hg38 - build 150)";
+echo "";
+echo "";
+echo "-----------------------------------------------------------";
+echo "";
+echo "";
+
+cd "$DIRECTORY/annovar"
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar refGene humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar exac03 humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar avsnp150 humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar dbnsfp41a humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar intervar_20180118 humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar gene4denovo201907 humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar gnomad30_genome humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar 1000g2015aug_all humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar clinvar_20210123 humandb/
+perl annotate_variation.pl -buildver hg38 -downdb -webfrom annovar regsnpintron humandb/
 
 cd "$CWD"
 
