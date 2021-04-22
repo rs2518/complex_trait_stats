@@ -20,7 +20,8 @@ __pycache__/
 scrap/
 
 # Setup
-setup.yml
+#setup.yml
 
 # Test scripts
 preprocess/process_geneatlas_newtest.py
+preprocess/_ga2avinput.py
