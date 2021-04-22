@@ -107,7 +107,8 @@ renamed_cols = {'ALLELE' : 'Allele',
                 'NBETA-50-0.0' : 'Beta',
                 'NSE-50-0.0' : 'SE',
                 'PV-50-0.0' : 'p_value',
-                'HWE-P' : 'HWE_P'}
+                'HWE-P' : 'HWE_P',
+                'Position' : 'start_position'}
 merged_data.rename(columns = renamed_cols, inplace = True)
 
 # Recode false missing data in 'iscore'
@@ -120,14 +121,21 @@ for index in indices_iscore:
     merged_data.loc[index, 'iscores'] = merged_data.loc[index, 'iscore']
 
 
-# Drop redundant columns
-merged_data.drop(['iscore', 'Allele'], axis = 1, inplace = True)
+# Create 'end_position' column and drop redundant columns
+merged_data['tmp'] = \
+    [len(a)-len(b) for a, b in zip(merged_data['A1'], merged_data['A2'])]
+merged_data['end_position'] = \
+    merged_data['start_position'] + merged_data['tmp']
+    
+merged_data.drop(['iscore', 'Allele', 'tmp'], axis = 1, inplace = True)
 
-# Reorder columns and log-transform p-values
+
+# Reorder columns
+main = ["Chromosome", "start_position", "end_position", "A1", "A2"]
 cols = merged_data.columns.to_list()
 cols.append(cols.pop(cols.index("p_value")))
+cols = main + [col for col in cols if col not in main]
 merged_data = merged_data[cols]
-# merged_data["log_p_val"] = -np.log10(merged_data["p_value"])
 
 
                 
