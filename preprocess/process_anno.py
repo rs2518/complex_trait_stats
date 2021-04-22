@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 # from complex_trait_stats.utils import RAW_DATA
-from complex_trait_stats.utils import ROOT
+from complex_trait_stats.utils import ROOT, ANNOTATED_DATA
 
 
 # Drop columns with too much missing data
@@ -32,9 +32,7 @@ def drop_missing_cols(data, threshold=None, return_summary=False):
 
 
 # Load data
-# filepath = os.path.join(ROOT, "data/annovar", "myanno.hg19_multianno.csv")
-# anno = pd.read_csv(filepath)
-filepath = os.path.join(ROOT, "data/annovar", "giantanno.hg19_multianno.csv")
+filepath = os.path.join(ROOT, "data/annovar", ANNOTATED_DATA)
 anno = pd.read_csv(filepath)
 
 # Recode "." to np.nan
@@ -69,3 +67,16 @@ nc_intro = anno[anno["Func.refGene"]=="ncRNA_intronic"]
 # print(drop_missing_cols(inter, return_summary=True)[-1])
 # print(drop_missing_cols(intro, return_summary=True)[-1])
 # print(drop_missing_cols(nc_intro, return_summary=True)[-1])
+
+# =============================================================================
+# 
+# =============================================================================
+
+filepath = os.path.join(ROOT, "data/annovar/legacy", "full_anno.hg38_multianno.csv")
+anno = pd.read_csv(filepath)
+
+# Recode "." to np.nan
+anno.replace({'-':np.nan}, inplace=True) 
+test, na_summary = drop_missing_cols(anno, return_summary=True)
+
+   

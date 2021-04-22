@@ -142,13 +142,12 @@ merged_data = merged_data[cols]
 # Save dataframe
 # --------------
 # Save dataframes or random sample of dataframes in csv format
-
-# Sampled data
 save_path = os.path.join(root_dir, "data")
-sample_merged = merged_data.sample(n = 500, random_state = 1010)
-sample_merged.to_csv(os.path.join(save_path, "snp_raw.csv"))
+
+# # Sampled data
+# merged_data.sample(n=500, random_state=1010).to_csv(
+#     os.path.join(save_path, "sample500_geneatlas_data_22chr_1000n.csv"))
 
 
 # Full data
-# merged_data.to_csv(os.path.join(save_path, "snp_raw.csv"))
-# merged_data.to_csv(os.path.join(save_path, "snp_raw_allchr.csv"))
+merged_data.to_csv(os.path.join(save_path, "geneatlas_data_22chr_1000n.csv"))

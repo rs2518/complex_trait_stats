@@ -36,9 +36,10 @@ from sklearn.utils import Bunch, check_random_state
 
 ROOT = os.path.join(os.path.expanduser("~"),
                     "Desktop/Term 3 MSc Project/complex_trait_stats")
-RAW_DATA = "snp_raw_allchr1000.csv"
-TOY_DATA = "snp_raw_4chr500.csv"
-TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
+RAW_DATA = "geneatlas_data_22chr_1000n.csv"
+TOY_DATA = "geneatlas_data_4chr_10n.csv"
+ANNOTATED_DATA = "giantanno.hg19_multianno.csv"
+# TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
 
 
 
