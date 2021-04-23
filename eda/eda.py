@@ -35,7 +35,7 @@ df = load_dataframe(RAW_DATA)
 
 # Log-transform p-values and display distributions
 df["log_p"] = -np.log10(df["p_value"])
-fig = plot_log_p_value(df, shade=True, linewidth=0)
+fig = plot_log_p_value(df, shade=True, linewidth=0, color="r")
 figpath = os.path.join(eda_figpath, "pvalue_transformation.png")
 fig.savefig(figpath)
 
