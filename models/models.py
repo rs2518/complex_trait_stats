@@ -42,7 +42,7 @@ from complex_trait_stats.utils import (coef_dict,
                                        plot_true_vs_pred,
                                        cv_table,
                                        tabulate_validation,
-                                       perm_dict,
+                                       tabulate_perm,
                                        plot_perm_importance,
                                        plot_rf_feature_importance,
                                        plot_neg_validation,
@@ -301,9 +301,8 @@ perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
                          random_state=mv_seed)
 
 # Plot permutation importances
-# perm_tab = tabulate_perm(perms, X.columns)
-perm_tab = perm_dict(perms, X.columns)
-fig = plot_perm_importance(perm_tab)
+perm_tab = tabulate_perm(perms, X.columns)
+fig = plot_perm_importance(perm_tab, sort="descending")
 figpath = os.path.join(eval_figpath, "permutation_importances.png")
 fig.savefig(figpath)
 

@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.cluster.hierarchy as sch
 
-# from joblib import Parallel
-# from joblib import delayed
+from joblib import Parallel, delayed
 
 from collections import Counter
 from sklearn.metrics import mean_squared_error as MSE
@@ -27,7 +26,6 @@ from statsmodels.stats.multitest import multipletests
 
 from sklearn.inspection._permutation_importance import \
     _calculate_permutation_scores
-from sklearn.inspection import permutation_importance
 from sklearn.metrics import check_scoring
 from sklearn.utils import Bunch, check_random_state
 # from sklearn.utils import Bunch, check_random_state, check_array
@@ -672,6 +670,27 @@ def model_validation(estimators, X, y, n_samples=3, n_repeats=5,
                               **kwargs)
 
 
+def permutation_importance(estimator, X, y, scoring=None, n_repeats=5,
+                           n_jobs=None, random_state=None):
+    """Variation of sklearn's permutation importance
+    
+    Runs permutation importance as a hypothesis test
+    """
+    random_state = check_random_state(random_state)
+    random_seed = random_state.randint(np.iinfo(np.int32).max + 1)
+
+    scorer = check_scoring(estimator, scoring=scoring)
+    baseline_score = scorer(estimator, X, y)
+
+    scores = Parallel(n_jobs=n_jobs)(delayed(_calculate_permutation_scores)(
+        estimator, X, y, col_idx, random_seed, n_repeats, scorer
+    ) for col_idx in range(X.shape[1]))
+
+    scores = np.array(scores)
+    
+    return Bunch(baseline_score=baseline_score, scores=scores)
+
+
 def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
                      sample_size=0.3, scoring=None, n_jobs=-2,
                      random_state=None, **kwargs):
@@ -718,25 +737,37 @@ def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
     return importance_dict
 
 
-def get_p(n, n_distribution, alpha=0.05):
-    """Return p value of entry n given a distribution with sig. level alpha
+def get_p(n, n_distribution, one_tailed=True, alternative="greater"):
+    """Return rank of entry n given a distribution
+    
+    If one_tailed=True, focus on one tail as defined by 'alternative'
+    (i.e. alternative="greater" for upper tail, alternative="less" for lower 
+    tail).
+    If one_tailed=False, focus on the upper tail when n >= median value and 
+    the lower tail when n <= median value. 'alternative' is inactive here.
     """
-    sl = (alpha/2)*100
     a = np.insert(n_distribution, 0, n)
     q2 = np.percentile(a, 50)
-        
-    if n >= q2:
-        p = 1 - np.searchsorted(a, n)/len(a)
-    else:
-        p = np.searchsorted(a, n)/len(a)
-    lt = np.percentile(n_distribution, sl)
-    ut = np.percentile(n_distribution, 100-sl)
     
-    return Bunch(p_val=p, lower_tail=lt, upper_tail=ut)
+    if one_tailed:
+        if alternative=="greater":
+            p = 1 - np.searchsorted(a, n)/len(a)
+        elif alternative=="less":
+            p = np.searchsorted(a, n)/len(a)
+    else:
+        if n >= q2:
+            p = 1 - np.searchsorted(a, n)/len(a)
+        else:
+            p = np.searchsorted(a, n)/len(a)
+    
+    return Bunch(p_val=p)
 
  
-def _calculate_prop(results, alpha=0.05, **kwargs):
+def _calculate_prop(results, alpha=0.05, one_tailed=True,
+                    alternative="greater", **kwargs):
     """Calculate combined p-value across all samples
+    
+    **kwargs are from 'multipletests'
     """
     keys = list(results.keys())
     models = results[keys[0]].scores.columns
@@ -753,7 +784,9 @@ def _calculate_prop(results, alpha=0.05, **kwargs):
         
         # Loop over models
         a[sample, :] = np.array([get_p(n=baseline_scores[i],
-                                       n_distribution=scores[:, i]).p_val
+                                       n_distribution=scores[:, i],
+                                       one_tailed=one_tailed,
+                                       alternative=alternative).p_val
                                  for i in range(n_models)])
             
     # Correct p-value for each model
@@ -779,53 +812,49 @@ def tabulate_validation(results, positive_ctrl=True, **kwargs):
             col = float(key[(key.find("=")+1):])
         else:
             col = key
-        d = pd.DataFrame(data=_calculate_prop(results[key],
-                                              **kwargs),
+        d = pd.DataFrame(data=_calculate_prop(results[key], **kwargs),
                          index=models, columns=[col])
         tab = pd.concat([tab, d], axis=1)    
         
     return tab
 
 
-def perm_dict(results, labels=None):
-    """Convert permutation importance results into dictionary
+def tabulate_perm(results, feature_names=None, alpha=0.05, one_tailed=True,
+                  alternative="greater", **kwargs):
+    """Tabulate permutation importance results
+    
+    **kwargs are from 'multipletests'
     """
     models = list(results.keys())
+    tmp = results[list(results.keys())[0]]
+    keys = list(tmp.keys())
     
-    # Loop through samples and collect mean importances for each model
-    d = {}
-    for model in models:
-        a = np.array([])
-        samples = list(results[model].keys())
-        for sample in samples:
-            means = results[model][sample].importances_mean
-            a = np.column_stack((a, means)) if a.size else means
-        d[model] = pd.DataFrame(a.T, index=samples, columns=labels)
-                
-    return d
-
-
-# def tabulate_perm(results, labels=None):
-#     """Tabulate permutation importance results
-#     """
-#     models = list(results.keys())
+    n_samples = len(keys)
+    n_features = tmp[list(tmp.keys())[0]].scores.shape[0]
+    n_models = len(models)
     
-#     # Loop through samples and collect mean importances for each model
-#     tab = pd.DataFrame()
-#     for model in models:
-#         a = np.array([])
-#         samples = list(results[model].keys())
-#         for sample in samples:
-#             means = results[model][sample].importances_mean
-#             a = np.column_stack((a, means)) if a.size else means
+    # Loop through models and samples
+    tab = np.zeros((n_features, n_models))
+    for j, model in enumerate(models):
+        a = np.zeros((n_features, n_samples))
+        for sample in range(n_samples):
+            baseline_score = results[model][keys[sample]].baseline_score
+            scores = results[model][keys[sample]].scores
+            
+            a[:, sample] = np.array([get_p(n=baseline_score,
+                                           n_distribution=scores[i, :],
+                                           one_tailed=one_tailed,
+                                           alternative=alternative).p_val
+                                     for i in range(n_features)])
         
-#         # Create column for model name
-#         d = pd.DataFrame(a.T, columns=labels)
-#         d["Model"] = d.shape[0]*[model]
+        # Correct p-values with multiple testing (across features and samples)
+        inds, p, _, _ = multipletests(a.flatten(), alpha=alpha, **kwargs)
+        inds = inds.reshape(n_features, n_samples)
+        p = p.reshape(n_features, n_samples)
         
-#         tab = pd.concat([tab, d], axis=0, ignore_index=True)
-                
-#     return tab
+        tab[:, j] = inds.sum(axis=1)/inds.shape[1]
+        
+    return pd.DataFrame(tab, index=feature_names, columns=models)
 
 
 def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
@@ -915,6 +944,8 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
         title = r"Proportion of samples where $H_0$ was rejected"
     
     models = results.index.to_list()
+    # noise = results.columns.to_list()
+    # x = np.arange(len(noise))
     x = results.columns.to_list()
     cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
     
@@ -926,6 +957,7 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
         plt.plot(x, y, label=model, color=cmap[i], **kwargs)
     
     ax.set_xticks(x)
+    # ax.set_xticklabels(noise)
     ax.set_ylim([0, 1.05])
     plt.xlabel(r"Standard Deviation ($\sigma$)")
     plt.ylabel("Proportion")
@@ -938,41 +970,46 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
     return fig
 
 
-def plot_perm_importance(results, palette="hls", n_colors=8,
-                         title=None, **kwargs):
+def plot_perm_importance(results, colors="default", title=None, sort=None,
+                         **kwargs):
     """Plot grid of permutation importances for each model
     """
+    # palette="hls", n_colors=8,
     # Set plot arguments. Cycle over colors
-    models = list(results.keys())
-    n_features = results[models[0]].shape[1]
-    colors = list(sns.color_palette(palette=palette, n_colors=n_colors,
-                                    desat=.65))
-    cmap = [colors[i%n_colors] for i in range(n_features)]
-    # from matplotlib.colors import Colormap
-    # cmap = Colormap([colors[i%n_colors] for i in range(n_features)])
+    models = results.columns.to_list()
+    features = results.index.to_list()
+    n_features = len(features)
     
-    # Grid of stripplots
-    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(15, 15))
-    
-    for i, model in enumerate(models):
-        # Melt scores data into long format for strip plot
-        data = pd.melt(results[model], var_name="Feature", value_name="Score")
-        sns.stripplot(x=data["Score"].values, y=data["Feature"],
-                      color=cmap, palette=palette, jitter=.0,
-                      ax=axes[i//3, i%3], **kwargs)
+    if colors is None:
+        colors = [None]*len(models)
+    elif colors == "default":
+        colors = ["cornflowerblue", "gold", "indianred", "darkgray",
+                  "limegreen", "mediumorchid", "darkorange"]
         
+    # Apply sort
+    if sort is None:
+        ind = np.tile(np.arange(n_features).reshape(-1,1), (1,len(models)))
+    elif sort == "descending":
+        ind = results.values.argsort(axis=0)
+    elif sort == "ascending":
+        ind = (-results.values).argsort(axis=0) 
+    
+    # Grid of barplots
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 20))
+    
+    for i, model in enumerate(models[:-1]):
+        axes[i//3, i%3].barh([features[k] for k in ind[:, i]],
+                             results[model].values[ind[:, i]],
+                             color=colors[i], **kwargs)
         axes[i//3, i%3].set_title(model)
-        axes[i//3, i%3].set_xscale('symlog')
-        axes[i//3, i%3].minorticks_off()
+        axes[i//3, i%3].set_xlim(0, 1.03)
         
     # Final subplot in middle column and remove empty subplots
-    data = pd.melt(results[models[-1]], var_name="Feature", value_name="Score")
-    sns.stripplot(x=data["Score"].values, y=data["Feature"],
-                  color=cmap, palette=palette, jitter=.0,
-                  ax=axes[2, 1], **kwargs)
+    axes[2, 1].barh([features[k] for k in ind[:, -1]],
+                    results[models[-1]].values[ind[:, -1]],
+                    color=colors[-1], **kwargs)
     axes[2, 1].set_title(models[-1])
-    axes[2, 1].set_xscale('symlog')
-    axes[2, 1].minorticks_off()
+    axes[2, 1].set_xlim(0, 1.01)
     axes[2, 0].remove()
     axes[2, 2].remove()
     plt.suptitle(title, fontsize=16)
