@@ -301,8 +301,8 @@ perms = perm_importances(fitted_models, X_test, y_test, scoring=scoring,
                          random_state=mv_seed)
 
 # Plot permutation importances
-perm_tab = tabulate_perm(perms, X.columns)
-fig = plot_perm_importance(perm_tab, sort="descending")
+perm_tab = tabulate_perm(perms, feature_names=X.columns, method=correction)
+fig = plot_perm_importance(perm_tab, edgecolor="white", alpha=0.75)
 figpath = os.path.join(eval_figpath, "permutation_importances.png")
 fig.savefig(figpath)
 
@@ -316,7 +316,7 @@ fig.savefig(figpath)
 # ----------------------
 # Get model predictions
 predictions = {key:model.predict(X_test).ravel()
-               for (key, model) in zip(perms.keys(), fitted_models)}
+               for (key, model) in zip(perm_tab.columns, fitted_models)}
 pred_df = pd.DataFrame(predictions)
 pred_df["Truths"] = y_test.values
 

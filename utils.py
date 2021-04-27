@@ -21,7 +21,7 @@ from sklearn.metrics import r2_score as R2
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from scipy.stats import zscore
-from scipy.stats import pearsonr, entropy
+from scipy.stats import pearsonr, entropy, combine_pvalues
 from statsmodels.stats.multitest import multipletests
 
 from sklearn.inspection._permutation_importance import \
@@ -847,12 +847,13 @@ def tabulate_perm(results, feature_names=None, alpha=0.05, one_tailed=True,
                                            alternative=alternative).p_val
                                      for i in range(n_features)])
         
-        # Correct p-values with multiple testing (across features and samples)
-        inds, p, _, _ = multipletests(a.flatten(), alpha=alpha, **kwargs)
-        inds = inds.reshape(n_features, n_samples)
-        p = p.reshape(n_features, n_samples)
+        # Combine p-values using Fisher's test across samples for each feature    
+        pvals = np.array([combine_pvalues(a[i, :])[1]
+                          for i in range(n_features)])
         
-        tab[:, j] = inds.sum(axis=1)/inds.shape[1]
+        # Multiple p-value correction across features
+        _, pvals_corrected, _, _ = multipletests(pvals, alpha=alpha, **kwargs)
+        tab[:, j] = pvals_corrected
         
     return pd.DataFrame(tab, index=feature_names, columns=models)
 
@@ -970,50 +971,44 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
     return fig
 
 
-def plot_perm_importance(results, colors="default", title=None, sort=None,
+def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
                          **kwargs):
-    """Plot grid of permutation importances for each model
+    """Plot permutation importance p-values
     """
-    # palette="hls", n_colors=8,
-    # Set plot arguments. Cycle over colors
+    # Set plot arguments
     models = results.columns.to_list()
     features = results.index.to_list()
     n_features = len(features)
-    
-    if colors is None:
-        colors = [None]*len(models)
-    elif colors == "default":
-        colors = ["cornflowerblue", "gold", "indianred", "darkgray",
-                  "limegreen", "mediumorchid", "darkorange"]
-        
-    # Apply sort
-    if sort is None:
-        ind = np.tile(np.arange(n_features).reshape(-1,1), (1,len(models)))
-    elif sort == "descending":
-        ind = results.values.argsort(axis=0)
-    elif sort == "ascending":
-        ind = (-results.values).argsort(axis=0) 
-    
+    if cmap is None:
+        cmap = list(sns.color_palette(palette="hls", n_colors=len(models),
+                                      desat=.85))
+                
     # Grid of barplots
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 20))
     
     for i, model in enumerate(models[:-1]):
-        axes[i//3, i%3].barh([features[k] for k in ind[:, i]],
-                             results[model].values[ind[:, i]],
-                             color=colors[i], **kwargs)
+        axes[i//3, i%3].scatter(np.arange(n_features), results[model].values,
+                                color=cmap[i], **kwargs)
         axes[i//3, i%3].set_title(model)
-        axes[i//3, i%3].set_xlim(0, 1.03)
-        
+        axes[i//3, i%3].set_ylim(-0.05, 1.05)
+        axes[i//3, i%3].set_xticks(np.arange(n_features))
+        axes[i//3, i%3].set_xticklabels(features, rotation=90)
+        axes[i//3, i%3].axhline(cutoff, ls="--", color="grey")
+        axes[i//3, i%3].axhline(0, color="black")
+    
     # Final subplot in middle column and remove empty subplots
-    axes[2, 1].barh([features[k] for k in ind[:, -1]],
-                    results[models[-1]].values[ind[:, -1]],
-                    color=colors[-1], **kwargs)
+    axes[2, 1].scatter(np.arange(n_features), results[models[-1]].values,
+                       color=cmap[-1], **kwargs)
     axes[2, 1].set_title(models[-1])
-    axes[2, 1].set_xlim(0, 1.01)
+    axes[2, 1].set_ylim(-0.05, 1.05)
+    axes[2, 1].set_xticks(np.arange(n_features))
+    axes[2, 1].set_xticklabels(features, rotation=90)
+    axes[2, 1].axhline(cutoff, ls="--", color="grey")
+    axes[2, 1].axhline(0, color="black")
     axes[2, 0].remove()
     axes[2, 2].remove()
-    plt.suptitle(title, fontsize=16)
     
+    plt.suptitle(title, fontsize=16)
     plt.tight_layout()
     plt.show()
     
