@@ -69,7 +69,7 @@ def _set_categories(dataframe):
 def _order_chromosomes(dataframe):
     """Order chromosome columns
     """
-    name = "Chromosome_chr"
+    name = "Chr"
     
     chrom = [col for col in dataframe.columns if name in col]
     cols = [col for col in dataframe.columns if col not in chrom]
@@ -98,6 +98,12 @@ def binarise_category(data):
     """
     # Binarise all categorical variables
     processed_data = pd.get_dummies(data)
+    
+    # Drop prefix for chromosome column
+    prefix = "Chromosome_"
+    chroms = [col for col in processed_data.columns if prefix in col]
+    new_chroms = {col:col[len(prefix):].title() for col in chroms}
+    processed_data.rename(columns=new_chroms, inplace=True)
     
     # Move label to last column
     cols = processed_data.columns.to_list()
@@ -974,6 +980,9 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
 def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
                          **kwargs):
     """Plot permutation importance p-values
+    
+    P-values with a value of zero are assigned a value of 10^30 during
+    log-transformation
     """
     # Set plot arguments
     models = results.columns.to_list()
@@ -982,28 +991,33 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
     if cmap is None:
         cmap = list(sns.color_palette(palette="hls", n_colors=len(models),
                                       desat=.85))
+        
+    # Log-transform p-values. Assign arbitrarily small value to zeroed p-values
+    a = results.values.flatten()
+    min_p = min(min(a[a > 0]), 2e-30)/2    
+    data = -np.log10(results.replace(0, min_p))
                 
     # Grid of barplots
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 20))
     
     for i, model in enumerate(models[:-1]):
-        axes[i//3, i%3].scatter(np.arange(n_features), results[model].values,
+        axes[i//3, i%3].scatter(np.arange(n_features), data[model].values,
                                 color=cmap[i], **kwargs)
         axes[i//3, i%3].set_title(model)
-        axes[i//3, i%3].set_ylim(-0.05, 1.05)
+        # axes[i//3, i%3].set_ylim(-0.05, 1.05)
         axes[i//3, i%3].set_xticks(np.arange(n_features))
         axes[i//3, i%3].set_xticklabels(features, rotation=90)
-        axes[i//3, i%3].axhline(cutoff, ls="--", color="grey")
+        axes[i//3, i%3].axhline(-np.log10(cutoff), ls="--", color="grey")
         axes[i//3, i%3].axhline(0, color="black")
     
     # Final subplot in middle column and remove empty subplots
-    axes[2, 1].scatter(np.arange(n_features), results[models[-1]].values,
+    axes[2, 1].scatter(np.arange(n_features), data[models[-1]].values,
                        color=cmap[-1], **kwargs)
     axes[2, 1].set_title(models[-1])
-    axes[2, 1].set_ylim(-0.05, 1.05)
+    # axes[2, 1].set_ylim(-0.05, 1.05)
     axes[2, 1].set_xticks(np.arange(n_features))
     axes[2, 1].set_xticklabels(features, rotation=90)
-    axes[2, 1].axhline(cutoff, ls="--", color="grey")
+    axes[2, 1].axhline(-np.log10(cutoff), ls="--", color="grey")
     axes[2, 1].axhline(0, color="black")
     axes[2, 0].remove()
     axes[2, 2].remove()
