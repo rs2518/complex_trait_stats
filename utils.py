@@ -1,5 +1,6 @@
 import os
 import math
+import joblib
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,7 @@ import scipy.cluster.hierarchy as sch
 from joblib import Parallel, delayed
 
 from collections import Counter
+from sklearn.base import clone
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.metrics import mean_absolute_error as MAE
 from sklearn.metrics import explained_variance_score as explained_var
@@ -38,6 +40,17 @@ RAW_DATA = "geneatlas_data_22chr_1000n.csv"
 TOY_DATA = "geneatlas_data_4chr_10n.csv"
 ANNOTATED_DATA = "giantanno.hg19_multianno.csv"
 # TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
+
+MODEL_PATH = os.path.join(ROOT, "models")
+MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
+              "Lasso":"Lasso_model.gz",
+              "Ridge":"Ridge_model.gz",
+              "Elastic Net":"ElasticNet_model.gz",
+              "PLS":"PLSRegression_model.gz",
+              "Random Forest":"RandomForestRegressor_model.gz",
+              "MLP":"MLP_model.gz"}
+
+TRAIN_TEST_PARAMS = dict(test_size=0.3, random_state=1010)
 
 
 
@@ -130,6 +143,56 @@ def process_data(data):
     """Process features and order chromosome columns
     """    
     return _order_chromosomes(binarise_category(scale_numeric(data)))
+
+
+
+# Other utilities
+# ---------------
+
+def create_directory(path):
+    """Create directory for given path if it doesn't exist
+    """
+    if not os.path.exists(path):
+        os.mkdir(path)
+        print("Created '{}' directory!".format(path[path.rfind("/")+1:]))
+        
+
+def save_models(models):
+    """Save and compress list of models within 'models' directory
+    
+    Model filenames are determined by '__name__' attribute except for MLP 
+    ('PickleableKerasRegressor' is replaced with 'MLP')
+    """
+    # Create 'saved_models' if it doesn't exist
+    dir_path = os.path.join(MODEL_PATH, "saved_models")
+    create_directory(dir_path)
+    
+    # Save models
+    for model in models:
+        name = type(model).__name__
+        if name == "PickleableKerasRegressor":
+            filename = os.path.join(dir_path, "MLP_model.gz")
+        else:
+            filename = os.path.join(dir_path, name+"_model.gz")
+        
+        joblib.dump(model, filename, compress=True)
+    
+
+def load_models(fitted=True):
+    """Load all saved models to environment in a dictionary
+    """
+    # Create empty dictionary of models
+    models = {}
+    
+    # Load models to dictionary
+    for model, file in MODEL_DICT.items():
+        models[model] = \
+            joblib.load(os.path.join(MODEL_PATH, "saved_models", file))
+            
+    if not fitted:
+        models = {key:clone(model) for key, model in models.items()}
+                
+    return models
 
 
 
@@ -261,13 +324,10 @@ def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
               random_state=None, scale_X=False,
               return_scaled_X=False, **split_options):
     """Returns dictionary with array of model coefficients at each iteration
-    for a given list of estiamtors
+    for a given dictionary of estiamtors
     """
-    # Check if estimators is an iterable and instantiate results dictionary
-    if not hasattr(estimators, "__iter__"):
-        estimators = [estimators]
-    coefs = {type(estimator).__name__:np.zeros((X.shape[1], n_iters))
-             for estimator in estimators}
+    # Instantiate results dictionary
+    coefs = {key:np.zeros((X.shape[1], n_iters)) for key in estimators.keys()}
 
     # Break links to original data
     X_s = X.copy()
@@ -292,12 +352,12 @@ def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
         
         # Fit estimator and store coefficients. Take first column in coef is
         # 2-dimensional
-        for estimator in estimators:
+        for key, estimator in estimators.items():
             estimator.fit(X_s, Y_s)
             if len(estimator.coef_.shape) == 2:
-                coefs[type(estimator).__name__][:,i] = estimator.coef_[:,0]
+                coefs[key][:,i] = estimator.coef_[:,0]
             else:
-                coefs[type(estimator).__name__][:,i] = estimator.coef_
+                coefs[key][:,i] = estimator.coef_
                 
     # Store coefficients as a dataframe
     inds = X.columns
@@ -550,8 +610,8 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
     returns information on the true positive rate 'tpr' or the false positive
     rate 'fpr'
     """    
-    if not hasattr(estimators, "__iter__"):
-        estimators = [estimators]
+    # if not hasattr(estimators, "__iter__"):
+    #     estimators = [estimators]
     # if random_state is not None:
     #     control_params["random_state"] = random_state
     
@@ -573,23 +633,20 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
     # Create arrays to store results
     scores = np.zeros((n_repeats, len(estimators)))
     baseline_scores = np.zeros(len(estimators))
-    models = []
+    models = estimators.keys()
     estimators = estimators.copy()    # Break links to original list
         
-    for i, estimator in enumerate(estimators):            
+    for i, (key, estimator) in enumerate(estimators.items()):            
         # Get estimator name then calculate permutation importance
-        if type(estimator).__name__ == "KerasRegressor":
-            models.append("MLP")
-            
+        if key == "MLP":            
             # Circumvent annoying Keras warnings
             if hasattr(Xs, "iloc"):
                 Xs = Xs.copy().values
             if hasattr(y, "iloc"):
                 ys = ys.copy().values
-                
+            
+            # Set dimension for MLP input layer
             estimator.set_params(input_dim=Xs.shape[1])
-        else:
-            models.append(type(estimator).__name__)
             
         scorer = check_scoring(estimator, scoring=scoring)
         
@@ -705,20 +762,16 @@ def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
     # Set function arguments
     kwargs["n_repeats"] = n_repeats
     kwargs["scoring"] = scoring
-    
-    if not hasattr(estimators, "__iter__"):
-        estimators = [estimators]
-        
+            
     # Create dictionary to store results
     importance_dict = {}
     
     # Loop over estimators
-    for estimator in estimators:
+    for name, estimator in estimators.items():
         
         # Get estimator name then calculate permutation importance
-        if type(estimator).__name__ == "KerasRegressor":
-            name = "MLP"
-            jobs = None    # n_jobs not supported for KerasRegressor
+        if name == "MLP":
+            # jobs = None    # n_jobs not supported for KerasRegressor
             
             # Circumvent annoying Keras warnings
             if hasattr(X, "iloc"):
@@ -726,12 +779,11 @@ def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
             if hasattr(y, "iloc"):
                 y = y.copy().values
                 
-        else:
-            name = type(estimator).__name__
-            jobs = n_jobs
+        # else:
+        #     jobs = n_jobs
         
         # Store results
-        kwargs["n_jobs"] = jobs
+        kwargs["n_jobs"] = n_jobs
         importance_dict[name] = \
             _bootstrap_wrapper(permutation_importance,
                                estimators=estimator,
