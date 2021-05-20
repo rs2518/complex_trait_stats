@@ -1,12 +1,44 @@
 import time
+import h5py
+import io
 
+from sklearn.base import BaseEstimator
 from sklearn.model_selection import RandomizedSearchCV
 from tensorflow.keras.regularizers import l1_l2
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
+
+
+class PickleableKerasRegressor(KerasRegressor, BaseEstimator):
+    """Wrapper class to enable pickling for KerasRegressor
+    
+    See https://github.com/keras-team/keras/issues/13168
+    """
+
+    def _pickle_model(self):
+        bio = io.BytesIO()
+        with h5py.File(bio, 'w') as f:
+            self.model.save(f)
+        return bio
+
+    def _unpickle_model(self, model):
+        with h5py.File(model, 'r') as f:
+            model = load_model(f)
+        return model 
+
+    def __getstate__(self):
+        state = BaseEstimator.__getstate__(self)
+        if hasattr(self, 'model'):
+            state['model'] = self._pickle_model()
+        return state
+
+    def __setstate__(self, state):
+        if state.get('model', None):
+            state['model'] = self._unpickle_model(state['model'])
+        return BaseEstimator.__setstate__(self, state)
 
 
 def _create_mlp(input_dim, hidden_layers=1, first_neurons=5, hidden_neurons=5,
@@ -60,8 +92,8 @@ def multilayer_perceptron(X, y, param_grid, folds=5, n_jobs=-2, n_iter=10,
     # param_grid["input_dim"] = [X.shape[1]]
 
     # Pass Keras model into scikit-learn wrapper then fit estimator
-    clf = KerasRegressor(build_fn=_create_mlp, input_dim=X.shape[1], epochs=5,
-                         batch_size=20, verbose=0)
+    clf = PickleableKerasRegressor(build_fn=_create_mlp, input_dim=X.shape[1],
+                                   epochs=5, batch_size=20, verbose=0)
     clf_cv = RandomizedSearchCV(estimator=clf,
                                 n_iter=n_iter,
                                 param_distributions=param_grid,
