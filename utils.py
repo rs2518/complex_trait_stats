@@ -34,8 +34,9 @@ from sklearn.utils import Bunch, check_random_state
 
 
 
-ROOT = os.path.join(os.path.expanduser("~"),
-                    "Desktop/Term 3 MSc Project/complex_trait_stats")
+#ROOT = os.path.join(os.path.expanduser("~"),
+#                    "Desktop/Term 3 MSc Project/complex_trait_stats")
+ROOT = os.path.dirname(os.path.abspath(__file__))
 RAW_DATA = "geneatlas_data_22chr_1000n.csv"
 TOY_DATA = "geneatlas_data_4chr_10n.csv"
 ANNOTATED_DATA = "giantanno.hg19_multianno.csv"
