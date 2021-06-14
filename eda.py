@@ -1,23 +1,12 @@
-# =============================================================================
-# TEMPORARY IMPORT FOR USE IN AN INTERPRETER
-# =============================================================================
-import os, sys
-
-directory = "Desktop/Term 3 MSc Project"
-
-path = os.path.join(os.path.abspath('.'), directory)
-sys.path.append(path)
-# =============================================================================
-
 import os
 
 import numpy as np
 
-from complex_trait_stats.utils import ROOT, RAW_DATA
-from complex_trait_stats.utils import load_dataframe
-from complex_trait_stats.utils import (compute_assoc,
-                                       plot_corr_heatmap,
-                                       plot_log_p_value)
+from cts.utils import ROOT, RAW_DATA
+from cts.utils import load_dataframe
+from cts.utils import (compute_assoc,
+                       plot_corr_heatmap,
+                       plot_log_p_value)
 
 
 # Define directories (and create if non-existent) to save plots

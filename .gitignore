@@ -9,6 +9,7 @@
 *.avinput
 !README.txt
 !Traits_Table_GeneATLAS.csv
+.DS_Store
 
 # Plots
 figures/
@@ -29,5 +30,9 @@ preprocess/process_geneatlas_newtest.py
 preprocess/_ga2avinput.py
 preprocess/_process_pipe.py
 preprocess/process_giant.py
-eda/_explore_ga.py
-eda/load_filetypes.py
+preprocess/process_anno.py
+#eda/_explore_ga.py
+#eda/load_filetypes.py
+testing/
+path_test.py
+cts/test.py

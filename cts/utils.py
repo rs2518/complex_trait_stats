@@ -37,12 +37,13 @@ from sklearn.utils import Bunch, check_random_state
 #ROOT = os.path.join(os.path.expanduser("~"),
 #                    "Desktop/Term 3 MSc Project/complex_trait_stats")
 ROOT = os.path.dirname(os.path.abspath(__file__))
+PKG = os.path.join(ROOT, "cts")
 RAW_DATA = "geneatlas_data_22chr_1000n.csv"
 TOY_DATA = "geneatlas_data_4chr_10n.csv"
 ANNOTATED_DATA = "giantanno.hg19_multianno.csv"
 # TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
 
-MODEL_PATH = os.path.join(ROOT, "models")
+MODEL_PATH = os.path.join(PKG "models")
 MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
               "Lasso":"Lasso_model.gz",
               "Ridge":"Ridge_model.gz",
@@ -1035,7 +1036,7 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
     """Plot permutation importance p-values
     
     P-values with a value of zero are assigned a value of 10^30 during
-    log-transformation
+    log-transformation.
     """
     # Set plot arguments
     models = results.columns.to_list()
@@ -1044,6 +1045,7 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
     if cmap is None:
         cmap = list(sns.color_palette(palette="hls", n_colors=len(models),
                                       desat=.85))
+    fontdict = {"fontsize":16}
         
     # Log-transform p-values. Assign arbitrarily small value to zeroed p-values
     a = results.values.flatten()
@@ -1051,28 +1053,19 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
     data = -np.log10(results.replace(0, min_p))
                 
     # Grid of barplots
-    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 20))
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 20), sharey=True)
     
-    for i, model in enumerate(models[:-1]):
+    for i, model in enumerate(models):
         axes[i//3, i%3].scatter(np.arange(n_features), data[model].values,
                                 color=cmap[i], **kwargs)
-        axes[i//3, i%3].set_title(model)
+        axes[i//3, i%3].set_title(model, fontdict=fontdict)
         # axes[i//3, i%3].set_ylim(-0.05, 1.05)
         axes[i//3, i%3].set_xticks(np.arange(n_features))
         axes[i//3, i%3].set_xticklabels(features, rotation=90)
         axes[i//3, i%3].axhline(-np.log10(cutoff), ls="--", color="grey")
         axes[i//3, i%3].axhline(0, color="black")
     
-    # Final subplot in middle column and remove empty subplots
-    axes[2, 1].scatter(np.arange(n_features), data[models[-1]].values,
-                       color=cmap[-1], **kwargs)
-    axes[2, 1].set_title(models[-1])
-    # axes[2, 1].set_ylim(-0.05, 1.05)
-    axes[2, 1].set_xticks(np.arange(n_features))
-    axes[2, 1].set_xticklabels(features, rotation=90)
-    axes[2, 1].axhline(-np.log10(cutoff), ls="--", color="grey")
-    axes[2, 1].axhline(0, color="black")
-    axes[2, 0].remove()
+    axes[2, 1].remove()
     axes[2, 2].remove()
     
     plt.suptitle(title, fontsize=16)

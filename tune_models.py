@@ -4,19 +4,19 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 
-from complex_trait_stats.models._linear_regression import linear_regression
-from complex_trait_stats.models._partial_least_sq import pls_regression
-from complex_trait_stats.models._random_forest import random_forest
-from complex_trait_stats.models._neural_network import multilayer_perceptron
-from complex_trait_stats.models._penalised_regression import (lasso_regression,
-                                                              ridge_regression,
-                                                              enet_regression)
+from cts.models._linear_regression import linear_regression
+from cts.models._partial_least_sq import pls_regression
+from cts.models._random_forest import random_forest
+from cts.models._neural_network import multilayer_perceptron
+from cts.models._penalised_regression import (lasso_regression,
+                                              ridge_regression,
+                                              enet_regression)
     
-from complex_trait_stats.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
-from complex_trait_stats.utils import (load_dataframe,
-                                       process_data,
-                                       create_directory,
-                                       save_models)
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import (load_dataframe,
+                       process_data,
+                       create_directory,
+                       save_models)
 
 
 
@@ -42,7 +42,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 # Set seed and n_jobs. Print fit times
 seed = 1010
 show_time = True
-n_jobs = -2
+n_jobs = -1
 
 
 # Linear Regression
@@ -52,8 +52,8 @@ lr = linear_regression(X_train, y_train, return_fit_time=show_time)
 
 # Penalised Regression (LASSO, Ridge, Elastic-Net)
 # ------------------------------------------------
-en_params = dict(alpha=np.logspace(-5, 2, 8),
-                 l1_ratio=np.linspace(0, 1, 6))
+en_params = dict(alpha=np.logspace(-5, 2, 16),
+                 l1_ratio=np.linspace(0, 1, 12))
 pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
 
 lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
@@ -77,44 +77,56 @@ pls = pls_regression(X_train, y_train, param_grid=pls_params,
 
 # Random Forest
 # -------------
-rf_params = dict(n_estimators=[10, 100, 250],
-                 max_features=["auto", "sqrt"],
-                 max_depth=[10, 25, 50],
-                 min_samples_split=[0.001, 0.01, 0.1],
-                 min_samples_leaf=[0.001, 0.01, 0.1])
+rf_params = dict(n_estimators=[10, 25, 50, 100, 250, 500, 1000],
+                 max_features=["auto", "sqrt", "log2"],
+                 max_depth=[5, 10, 25, 50, 100, 250],
+                 min_samples_split=[0.001, 0.01, 0.1, 0.2],
+                 min_samples_leaf=[0.001, 0.01, 0.1, 0.2])
 
-rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=1,
+rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=1210,
                    n_jobs=n_jobs, random_state=seed,
                    return_fit_time=show_time, warm_start=True)
+# Search ~60% of the hyperparameter space
 
 
 # Multilayer Perceptron
 # ---------------------
+first_neurons=[1, 5, 10, 15, 25, 50]
+hidden_neurons=[1, 5, 10, 15, 25, 50]
+activation=["relu"]
+last_activation=["relu", None]
+dropout=[0.01, 0.1, 0.2]
+l1=[1e-02, 1e-04, 1e-06, 1e-08]
+l2=[1e-02, 1e-04, 1e-06, 1e-08]
+epochs=[10, 500, 1000, 5000, 10000]
+batch_size=[20, 100, 500, 1000, 5000]
+
 one_layer_params = dict(hidden_layers=[1],
-                        first_neurons=[1, 10, 25],
+                        first_neurons=first_neurons,
                         hidden_neurons=[None],
-                        activation=["relu"],
-                        last_activation=[None],
-                        dropout=[0.01, 0.1],
-                        l1=[1e-04],
-                        l2=[1e-04],
-                        epochs=[20],
-                        batch_size=[100])    # Single hidden layer
+                        activation=activation,
+                        last_activation=last_activation,
+                        dropout=dropout,
+                        l1=l1,
+                        l2=l2,
+                        epochs=epochs,
+                        batch_size=batch_size)    # Single hidden layer
 multi_layer_params = dict(hidden_layers=[2, 3],
-                          first_neurons=[1, 10, 25],
-                          hidden_neurons=[1, 10, 25],
-                          activation=["relu"],
-                          last_activation=[None],
-                          dropout=[0.01, 0.1],
-                          l1=[1e-04],
-                          l2=[1e-04],
-                          epochs=[20],
-                          batch_size=[100])    # Multiple hidden layers
+                          first_neurons=first_neurons,
+                          hidden_neurons=hidden_neurons,
+                          activation=activation,
+                          last_activation=last_activation,
+                          dropout=dropout,
+                          l1=l1,
+                          l2=l2,
+                          epochs=epochs,
+                          batch_size=batch_size)    # Multiple hidden layers
 
 mlp_params = [one_layer_params, multi_layer_params]
-mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=1,
+mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params, n_iter=50400,
                             n_jobs=n_jobs, random_state=seed,
                             return_fit_time=show_time)
+# Search ~50% of the hyperparameter space
 
 
 # Create lists of tuned models

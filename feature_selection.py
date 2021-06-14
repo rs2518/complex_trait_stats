@@ -4,17 +4,17 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 
-from complex_trait_stats.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
-from complex_trait_stats.utils import (load_dataframe,
-                                       process_data,
-                                       create_directory,
-                                       load_models,
-                                       coef_dict,
-                                       coef_stats_dict,
-                                       plot_stability,
-                                       plot_mean_coef_heatmap,
-                                       plot_coefs,
-                                       cv_table)
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import (load_dataframe,
+                       process_data,
+                       create_directory,
+                       load_models,
+                       coef_dict,
+                       coef_stats_dict,
+                       plot_stability,
+                       plot_mean_coef_heatmap,
+                       plot_coefs,
+                       cv_table)
 
 
 
@@ -47,7 +47,7 @@ linear_unfitted_models = {k:v for k, v in unfitted_models.items()
 # -----------------
 # Set iterables and parameters
 sample_size = 0.3
-n_iters = 20
+n_iters = 50
 seed = 1
 
 # Produce stability plots for linear models

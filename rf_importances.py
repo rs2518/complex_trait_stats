@@ -4,12 +4,12 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 
-from complex_trait_stats.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
-from complex_trait_stats.utils import (load_dataframe,
-                                       process_data,
-                                       create_directory,
-                                       load_models,
-                                       plot_rf_feature_importance)
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import (load_dataframe,
+                       process_data,
+                       create_directory,
+                       load_models,
+                       plot_rf_feature_importance)
 
 
 
