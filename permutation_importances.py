@@ -3,7 +3,9 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-    
+from tensorflow.config.threading import (set_inter_op_parallelism_threads,
+					 set_intra_op_parallelism_threads)
+
 from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
 from cts.utils import (load_dataframe,
                        process_data,
@@ -38,17 +40,22 @@ models = load_models()
 # Model reliance 
 # --------------
 # Set iterables and parameters
-n_samples = 3
+n_samples = 1000
 sample_size = 0.3
-n_repeats = 5
+n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
 
+# Set number of threads
+num_threads = 80    # Set to match ncpus
+set_inter_op_parallelism_threads(num_threads)
+set_inter_op_parallelism_threads(num_threads)
+
 # Permutation importances for each feature
 perms = perm_importances(models, X_test, y_test, scoring=scoring,
                          n_samples=n_samples, n_repeats=n_repeats,
-                         random_state=seed)
+                         n_jobs=-1, random_state=seed)
 
 # Plot permutation importances
 perm_tab = tabulate_perm(perms, feature_names=X.columns, method=correction)

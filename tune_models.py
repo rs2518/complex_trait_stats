@@ -3,6 +3,8 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from tensorflow.config.threading import (set_inter_op_parallelism_threads,
+					 set_intra_op_parallelism_threads)
 
 from cts.models._linear_regression import linear_regression
 from cts.models._partial_least_sq import pls_regression
@@ -43,6 +45,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 seed = 1010
 show_time = True
 n_jobs = -1
+
+# Set number of threads
+num_threads = 80    # Set to match ncpus
+set_inter_op_parallelism_threads(num_threads)
+set_inter_op_parallelism_threads(num_threads)
 
 
 # Linear Regression

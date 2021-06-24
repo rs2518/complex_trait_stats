@@ -36,14 +36,14 @@ from sklearn.utils import Bunch, check_random_state
 
 #ROOT = os.path.join(os.path.expanduser("~"),
 #                    "Desktop/Term 3 MSc Project/complex_trait_stats")
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(ROOT, "cts")
 RAW_DATA = "geneatlas_data_22chr_1000n.csv"
 TOY_DATA = "geneatlas_data_4chr_10n.csv"
 ANNOTATED_DATA = "giantanno.hg19_multianno.csv"
 # TOY_PROCESSED_DATA = "snp_processed_4chr5000.csv"
 
-MODEL_PATH = os.path.join(PKG "models")
+MODEL_PATH = os.path.join(PKG, "models")
 MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
               "Lasso":"Lasso_model.gz",
               "Ridge":"Ridge_model.gz",

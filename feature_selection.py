@@ -47,7 +47,7 @@ linear_unfitted_models = {k:v for k, v in unfitted_models.items()
 # -----------------
 # Set iterables and parameters
 sample_size = 0.3
-n_iters = 50
+n_iters = 1000
 seed = 1
 
 # Produce stability plots for linear models

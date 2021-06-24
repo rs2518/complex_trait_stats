@@ -38,13 +38,13 @@ models = load_models(fitted=False)
 # Positive control (perfectly correlated control feature)
 # -------------------------------------------------------
 # Set iterables and parameters
-n_samples = 3
+n_samples = 1000
 sample_size = 0.3
-n_repeats = 5
+n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
-noise_params = [0., 5., 10., 15., 25.]
+noise_params = [0., 10., 25., 50., 75., 100., 150.]
 
 # Positive control validation vs. noise over bootstrapped samples
 pos_ctrl = {"sigma="+str(noise):model_validation(estimators=models,

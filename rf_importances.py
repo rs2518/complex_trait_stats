@@ -22,7 +22,7 @@ df = load_dataframe(RAW_DATA)
 data = process_data(df)
 X = data.drop(['p_value'], axis=1)
 y = -np.log10(data["p_value"])
-X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
+#X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 
 # Load models
 fitted_models = load_models()

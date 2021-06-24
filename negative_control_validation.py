@@ -38,9 +38,9 @@ models = load_models()
 # Negative control strategy (permuted labels)
 # -------------------------------------------
 # Set iterables and parameters
-n_samples = 3
+n_samples = 1000
 sample_size = 0.3
-n_repeats = 5
+n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
