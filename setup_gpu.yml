@@ -1,0 +1,18 @@
+name: cts_gpu
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.7
+  - numpy
+  - pandas
+  - matplotlib=3.3.1
+  - seaborn=0.10.1
+  - tensorflow-gpu
+  - statsmodels
+  - scikit-learn
+  - h5py=2.10.0
+
+# Note that Perl is already included on MacOS. Perl will need to be installed for other systems
