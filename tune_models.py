@@ -49,7 +49,7 @@ n_jobs = -1
 # Set number of threads
 num_threads = 80    # Set to match ncpus
 set_inter_op_parallelism_threads(num_threads)
-set_inter_op_parallelism_threads(num_threads)
+set_intra_op_parallelism_threads(num_threads)
 
 
 # Linear Regression
