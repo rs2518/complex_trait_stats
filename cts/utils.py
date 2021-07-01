@@ -188,9 +188,12 @@ def load_models(fitted=True):
     
     # Load models to dictionary
     for model, file in MODEL_DICT.items():
-        models[model] = \
-            joblib.load(os.path.join(MODEL_PATH, "saved_models", file))
-            
+        try:
+            models[model] = \
+                joblib.load(os.path.join(MODEL_PATH, "saved_models", file))
+        except FileNotFoundError:
+            pass
+
     if not fitted:
         models = {key:clone(model) for key, model in models.items()}
                 
