@@ -3,12 +3,10 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-# from tensorflow.config.threading import (set_inter_op_parallelism_threads,
-#                                          set_intra_op_parallelism_threads)
 
 from cts.models._partial_least_sq import pls_regression
     
-from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS, CV_FOLDS
 from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
@@ -38,12 +36,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 # Set seed and n_jobs. Print fit times
 seed = 1010
 show_time = True
-n_jobs = -2
-
-# # Set number of threads
-# num_threads = 80    # Set to match ncpus
-# set_inter_op_parallelism_threads(num_threads)
-# set_inter_op_parallelism_threads(num_threads)
+n_jobs = -1
 
 
 # PLS Regression
@@ -51,7 +44,10 @@ n_jobs = -2
 pls_params = dict(n_components=np.arange(1, X.shape[1]+1))
 
 pls = pls_regression(X_train, y_train, param_grid=pls_params,
-                     n_jobs=n_jobs, return_fit_time=show_time)
+                     folds=CV_FOLDS, n_jobs=n_jobs,
+		     return_fit_time=show_time)
 
 # Save model(s)
+print(24*"#")
+print(pls.best_estimator_)
 save_models(pls.best_estimator_)

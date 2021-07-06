@@ -53,6 +53,7 @@ MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
               "MLP":"MLP_model.gz"}
 
 TRAIN_TEST_PARAMS = dict(test_size=0.3, random_state=1010)
+CV_FOLDS = 10
 
 
 

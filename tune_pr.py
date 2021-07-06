@@ -3,14 +3,12 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-from tensorflow.config.threading import (set_inter_op_parallelism_threads,
-                                          set_intra_op_parallelism_threads)
 
 from cts.models._penalised_regression import (lasso_regression,
                                               ridge_regression,
                                               enet_regression)
     
-from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS, CV_FOLDS
 from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
@@ -42,28 +40,29 @@ seed = 1010
 show_time = True
 n_jobs = -1
 
-# Set number of threads
-num_threads = 16    # Set to match ncpus
-set_inter_op_parallelism_threads(num_threads)
-set_intra_op_parallelism_threads(num_threads)
-
 
 # Penalised Regression (LASSO, Ridge, Elastic-Net)
 # ------------------------------------------------
 en_params = dict(alpha=np.logspace(-8, 8, 17),
-                 l1_ratio=np.linspace(0, 1, 21))
+                 l1_ratio=np.linspace(0, 1, 41))
 pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
 
 lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
-                         n_jobs=n_jobs, random_state=seed,
+                         folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
                          return_fit_time=show_time, warm_start=True)
 ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
-                         n_jobs=n_jobs, random_state=seed,
+                         folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
                          return_fit_time=show_time)
 enet = enet_regression(X_train, y_train, param_grid=en_params,
-                       n_jobs=n_jobs, random_state=seed,
+                       folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
                        return_fit_time=show_time, warm_start=True)
 
 # Save model(s)
+print(24*"#")
+print(lasso.best_estimator_)
+print(24*"#")
+print(ridge.best_estimator_)
+print(24*"#")
+print(enet.best_estimator_)
 models = [lasso.best_estimator_, ridge.best_estimator_, enet.best_estimator_]
 save_models(models)

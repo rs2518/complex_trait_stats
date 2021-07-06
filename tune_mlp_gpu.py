@@ -8,7 +8,7 @@ from tensorflow.config.threading import (set_inter_op_parallelism_threads,
 
 from cts.models._neural_network import multilayer_perceptron
     
-from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS, CV_FOLDS
 from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
@@ -81,9 +81,11 @@ multi_layer_params = dict(hidden_layers=[2, 3],
 
 mlp_params = [one_layer_params, multi_layer_params]
 mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
-                            n_iter=50400, n_jobs=n_jobs, random_state=seed,
-                            return_fit_time=show_time)
+                            n_iter=50400, folds=CV_FOLDS, n_jobs=n_jobs,
+                            random_state=seed, return_fit_time=show_time)
 # Search ~50% of the hyperparameter space
 
 # Save model(s)
+print(24*"#")
+print(mlp.best_estimator_)
 save_models(mlp.best_estimator_)

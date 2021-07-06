@@ -3,12 +3,10 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-from tensorflow.config.threading import (set_inter_op_parallelism_threads,
-                                         set_intra_op_parallelism_threads)
 
 from cts.models._random_forest import random_forest
     
-from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
+from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS, CV_FOLDS
 from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
@@ -40,11 +38,6 @@ seed = 1010
 show_time = True
 n_jobs = -1
 
-# Set number of threads
-num_threads = 80    # Set to match ncpus
-set_inter_op_parallelism_threads(num_threads)
-set_inter_op_parallelism_threads(num_threads)
-
 
 # Random Forest
 # -------------
@@ -55,9 +48,11 @@ rf_params = dict(n_estimators=[10, 25, 50, 100, 250, 500, 1000],
                  min_samples_leaf=[0.001, 0.01, 0.05, 0.1, 0.15, 0.2])
 
 rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=2722,
-                   n_jobs=n_jobs, random_state=seed,
+                   folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
                    return_fit_time=show_time, warm_start=True)
 # Search ~60% of the hyperparameter space
 
 # Save model(s)
+print(24*"#")
+print(rf.best_estimator_)
 save_models(rf.best_estimator_)
