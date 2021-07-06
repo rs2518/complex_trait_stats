@@ -10,7 +10,6 @@ from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
                        load_models,
-                       perm_tab,
                        plot_true_vs_pred)
 
 
@@ -39,7 +38,7 @@ models = load_models()
 # ----------------------
 # Get model predictions
 predictions = {key:model.predict(X_test).ravel()
-               for (key, model) in zip(perm_tab.columns, models)}
+               for (key, model) in models.items()}
 pred_df = pd.DataFrame(predictions)
 pred_df["Truths"] = y_test.values
 
