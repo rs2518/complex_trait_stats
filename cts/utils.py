@@ -417,7 +417,6 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
     features = coef_matrix.index
     coefs = coef_matrix.values
     positions = [i+0.5 for i in range(len(features))]
-    xticklabels = np.arange(1, coefs.shape[1]+1)
     vlim = np.amax(np.abs(coefs))*1.05
     
     fig, axes = plt.subplots(1, 2, figsize=(12,8), sharey=True)
@@ -429,7 +428,7 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
     axes[0].axvline(**vline_kwargs)
     axes[0].set_xlabel("Model coefficients")
     sns.heatmap(data=coefs, vmin=-vlim, vmax=vlim, cmap="vlag", 
-                xticklabels=xticklabels, yticklabels=features, ax=axes[1],
+                yticklabels=features, ax=axes[1],
                 **hm_kwargs)
     axes[1].set_xlabel("Iteration #")
     

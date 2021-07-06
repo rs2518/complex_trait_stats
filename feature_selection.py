@@ -59,7 +59,8 @@ coefs = coef_dict(estimators=linear_unfitted_models,
 coef_stats = coef_stats_dict(coefs)
 
 for model, coef in coefs.items():
-    fig = plot_stability(coef, title=model)
+    fig = plot_stability(coef, title=model, hm_kwargs={
+	"xticklabels":[i+1 if (i+1)%100==0 else "" for i in range(n_iters)]})
     
     name = model.lower().replace(" ", "") + "_stability_plot.png"
     figpath = os.path.join(path, name)
