@@ -45,6 +45,7 @@ seed = 1
 scoring = "r2"
 correction = "fdr_bh"
 noise_params = [0., 10., 25., 50., 75., 100., 150.]
+n_jobs = -1
 
 # Positive control validation vs. noise over bootstrapped samples
 pos_ctrl = {"sigma="+str(noise):model_validation(estimators=models,
@@ -56,7 +57,8 @@ pos_ctrl = {"sigma="+str(noise):model_validation(estimators=models,
                                                  positive_ctrl=True,
                                                  random_state=seed,
                                                  control_params={
-                                                     "sigma":noise})
+                                                     "sigma":noise},
+						 n_jobs=n_jobs)
             for noise in noise_params}
 
 # Plot positive control results

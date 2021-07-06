@@ -49,11 +49,12 @@ linear_unfitted_models = {k:v for k, v in unfitted_models.items()
 sample_size = 0.3
 n_iters = 1000
 seed = 1
+n_jobs = -1
 
 # Produce stability plots for linear models
 coefs = coef_dict(estimators=linear_unfitted_models,
                   X=X_train, Y=y_train,
-                  n_iters=n_iters, bootstrap=True,
+                  n_iters=n_iters, n_jobs=n_jobs,
                   random_state=seed, train_size=sample_size)
 coef_stats = coef_stats_dict(coefs)
 

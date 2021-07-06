@@ -44,6 +44,7 @@ n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
+n_jobs = -1
 
 # Negative control validation over bootstrapped samples
 neg_ctrl = {version:model_validation(estimators=models,
@@ -53,7 +54,8 @@ neg_ctrl = {version:model_validation(estimators=models,
                                      n_repeats=n_repeats,
                                      positive_ctrl=False,
                                      random_state=seed,
-                                     version=version)
+                                     version=version,
+				     n_jobs=n_jobs)
             for version in ["tpr", "fpr"]}
 
 # Plot negative control results

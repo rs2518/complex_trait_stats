@@ -326,14 +326,15 @@ def get_outlier_inds(a, threshold=8):
 # Stability analysis
 # ------------------
 
-def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
+def coef_dict(estimators, X, Y, n_iters=5, n_jobs=None,
               random_state=None, scale_X=False,
               return_scaled_X=False, **split_options):
     """Returns dictionary with array of model coefficients at each iteration
     for a given dictionary of estiamtors
     """
     # Instantiate results dictionary
-    coefs = {key:np.zeros((X.shape[1], n_iters)) for key in estimators.keys()}
+    # coefs = {key:np.zeros((X.shape[1], n_iters)) for key in estimators.keys()}
+    coefs = {}
 
     # Break links to original data
     X_s = X.copy()
@@ -346,36 +347,38 @@ def coef_dict(estimators, X, Y, n_iters=5, bootstrap=False,
         scaler = StandardScaler()
         X_s[num_cols] = scaler.fit_transform(X_s[num_cols])
 
-    # Loop over n_iters
-    for i in range(n_iters):
-        # Take random sample of data
-        if bootstrap:
-            X_s, _, Y_s, _ = \
-                train_test_split(X, Y, random_state=random_state,
-                                 **split_options)
-            if isinstance(random_state, int):
-                random_state += 1
+    # Set random seeds and run parallel loop
+    random_state = check_random_state(random_state)
+    seed = [random_state.randint(np.iinfo(np.int32).max + 1)
+            for i in range(n_iters)]
+    
+    for key, estimator in estimators.items():
+        scores = Parallel(n_jobs=n_jobs)(delayed(_extract_coefs)(
+            estimator, X_s, Y_s, seed[i], **split_options) for i in range(n_iters))
         
-        # Fit estimator and store coefficients. Take first column in coef is
-        # 2-dimensional
-        for key, estimator in estimators.items():
-            estimator.fit(X_s, Y_s)
-            if len(estimator.coef_.shape) == 2:
-                coefs[key][:,i] = estimator.coef_[:,0]
-            else:
-                coefs[key][:,i] = estimator.coef_
-                
-    # Store coefficients as a dataframe
-    inds = X.columns
-    cols = range(1, n_iters+1)
-    coefs = {
-        k:pd.DataFrame(v, index=inds, columns=cols) for k, v in coefs.items()}
+        coefs[key] = pd.DataFrame(np.array(scores).T,
+                                  index=X.columns,
+                                  columns=range(1, n_iters+1))
 
     if return_scaled_X:
         return coefs, X_s
     else:
         return coefs
 
+
+def _extract_coefs(estimator, X, Y, random_state, **split_options):
+    """Extract model coefficients
+    """
+    # Take random sample of data
+    X_s, _, Y_s, _ = \
+        train_test_split(X, Y, random_state=random_state, **split_options)
+    
+    # Fit estimator and store coefficients. Take first column in coef is
+    # 2-dimensional
+    estimator.fit(X_s, Y_s)
+            
+    return estimator.coef_.ravel()
+    
 
 def _mean_summary(coef_dict, return_std=False):
     """Return means and standard deviations from coef_dict dictionary
@@ -560,47 +563,63 @@ def _create_control_feature(X, y, sigma=0., random_state=None,
     return X2
 
 
-def _calculate_perm_labels(estimator, X, y, random_state, n_repeats, scorer):
-    """Calculate score when labels are permuted
+def _pos_permutation_score(estimator, X, y, col_idx, random_state, scorer):
+    """Calculate score when col_id is permuted
     
-    Variation of sklearn's '_calculate_permutation_scores'. Permutes y instead
-    of X.
+    Variation of sklearn's '_calculate_permutation_scores'.
     """
     random_state = check_random_state(random_state)
-
-    y_permuted = y.copy()
-    scores = np.zeros(n_repeats)
+    
+    # Break links to original
+    X_permuted = X.copy()
+    
+    # Shuffle labels and return score
     shuffling_idx = np.arange(X.shape[0])
-    for n_round in range(n_repeats):
-        random_state.shuffle(shuffling_idx)
-        y_permuted = y_permuted[shuffling_idx]
+    random_state.shuffle(shuffling_idx)
+    if hasattr(X_permuted, "iloc"):
+        col = X_permuted.iloc[shuffling_idx, col_idx]
+        col.index = X_permuted.index
+        X_permuted.iloc[:, col_idx] = col
+    else:
+        X_permuted[:, col_idx] = X_permuted[shuffling_idx, col_idx]
+        
+    return scorer(estimator, X_permuted, y)
 
-        # Score on training set
-        feature_score = scorer(estimator, X, y_permuted)
-        scores[n_round] = feature_score
 
-    return scores
+def _neg_permutation_score(estimator, X, y, random_state, scorer):
+    """Calculate score when labels are permuted
+    """
+    random_state = check_random_state(random_state)
+    
+    # Break links to original
+    y_permuted = y.copy()
+    
+    # Shuffle labels and return score
+    shuffling_idx = np.arange(X.shape[0])
+    random_state.shuffle(shuffling_idx)
+    y_permuted = y_permuted[shuffling_idx]
+
+    return scorer(estimator, X, y_permuted)
 
 
-def calculate_perm_scores(estimator, X, y, col_idx, random_state,
-                          n_repeats, scorer, positive_ctrl):
-    """General permutation score algorithm
+def _validation_permutation_score(estimator, X, y, col_idx, random_state,
+                                  scorer, positive_ctrl):
+    """General permutation score for validation methods
     
     If 'positive_ctrl=True', permute X. Otherwise, permute y
     """    
     if positive_ctrl:
-        return _calculate_permutation_scores(estimator=estimator,
-                                             X=X, y=y, col_idx=col_idx,
-                                             random_state=random_state,
-                                             n_repeats=n_repeats,
-                                             scorer=scorer)
-    else:
-        return _calculate_perm_labels(estimator=estimator, X=X, y=y,
+        return _pos_permutation_score(estimator=estimator,
+                                      X=X, y=y, col_idx=col_idx,
                                       random_state=random_state,
-                                      n_repeats=n_repeats, scorer=scorer)
+                                      scorer=scorer)
+    else:
+        return _neg_permutation_score(estimator=estimator, X=X, y=y,
+                                      random_state=random_state,
+                                      scorer=scorer)
 
     
-def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
+def validate_sample(estimators, X, y, n_jobs=None, scoring=None, n_repeats=5,
                     positive_ctrl=True, random_state=None, version="fn",
                     return_fitted_estimators=False, control_params={}):
     """Model validation for models
@@ -623,6 +642,7 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
     
     # Initial seed generator using random_state
     r = check_random_state(random_state)
+    rng = r.randint(np.iinfo(np.int32).max+1, size=n_repeats)
     
     # Check if bool
     if type(positive_ctrl) != bool:
@@ -633,7 +653,6 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
                                      **control_params)
     else:
         Xs = X.copy()
-        
     ys = y.copy()
     
     # Create arrays to store results
@@ -665,16 +684,15 @@ def validate_sample(estimators, X, y, scoring=None, n_repeats=5,
             elif version == "fpr":
                 init_seed = r.randint(np.iinfo(np.int32).max)
                 baseline_scores[i] = \
-                    _calculate_perm_labels(estimator=estimator, X=Xs, y=ys,
+                    _neg_permutation_score(estimator=estimator, X=Xs, y=ys,
                                            random_state=init_seed,
-                                           n_repeats=1, scorer=scorer)[0]
+                                           scorer=scorer)
         
-        scores[:,i] = \
-            calculate_perm_scores(estimator=estimator, X=Xs, y=ys,
-                                  col_idx=Xs.shape[1]-1,
-                                  random_state=random_state,
-                                  n_repeats=n_repeats, scorer=scorer,
-                                  positive_ctrl=positive_ctrl)
+        arr = Parallel(n_jobs=n_jobs)(delayed(_validation_permutation_score)(
+            estimator, Xs, ys, Xs.shape[1]-1, seed, scorer, positive_ctrl
+            ) for seed in rng)
+        
+        scores[:,i] = arr
     
         # # Calculate difference in baseline and permuted scores
         # scores[:,i] = baseline_scores[i] - scores[:,i]
