@@ -36,7 +36,7 @@ desc = df.describe(include="all").loc[["mean", "50%", "std", "top", "freq"]].T
 cat_cols = df.select_dtypes(include=["object", "category"]).columns.to_list()
 num_cols = [col for col in df.columns if col not in cat_cols]
 desc = desc.loc[num_cols+cat_cols]    # Reorder columns
-
+print(desc)
 
 # Plot correlation heatmap
 corr, _, _, _ = compute_assoc(df, cat_cols, clustering=True)
