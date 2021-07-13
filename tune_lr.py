@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 
 from cts.models._linear_regression import linear_regression
 
@@ -43,8 +44,12 @@ n_jobs = -1
 # -----------------
 lr = linear_regression(X_train, y_train, n_jobs=n_jobs,
                        return_fit_time=show_time)
+print(12*"-", "\n")
+print(lr)
+print(12*"-", "\n")
+print("Linear Regression test score (R2) :", r2_score(y_test,
+                                                      lr.predict(X_test)))
+print(36*"=", "\n")
 
 # Save model(s)
-print(24*"#")
-print(lr)
 save_models(lr)

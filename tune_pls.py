@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 
 from cts.models._partial_least_sq import pls_regression
     
@@ -43,11 +44,15 @@ n_jobs = -1
 # --------------
 pls_params = dict(n_components=np.arange(1, X.shape[1]+1))
 
-pls = pls_regression(X_train, y_train, param_grid=pls_params,
-                     folds=CV_FOLDS, n_jobs=n_jobs,
-		     return_fit_time=show_time)
+pls_cv = pls_regression(X_train, y_train, param_grid=pls_params,
+                        folds=CV_FOLDS, n_jobs=n_jobs,
+		        return_fit_time=show_time)
+print(12*"-", "\n")
+pls = pls_cv.best_estimator_
+print(pls)
+print(12*"-", "\n")
+print("PLS test score (R2) :", r2_score(y_test, pls.predict(X_test)))
+print(36*"=", "\n")
 
 # Save model(s)
-print(24*"#")
-print(pls.best_estimator_)
-save_models(pls.best_estimator_)
+save_models(pls)

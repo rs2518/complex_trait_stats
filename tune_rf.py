@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 
 from cts.models._random_forest import random_forest
     
@@ -41,18 +42,21 @@ n_jobs = -1
 
 # Random Forest
 # -------------
-rf_params = dict(n_estimators=[10, 25, 50, 100, 250, 500, 1000],
+rf_params = dict(n_estimators=[10, 100, 250, 500, 1000],
                  max_features=["auto", "sqrt", "log2"],
-                 max_depth=[5, 10, 25, 50, 100, 250],
-                 min_samples_split=[0.001, 0.01, 0.05, 0.1, 0.15, 0.2],
-                 min_samples_leaf=[0.001, 0.01, 0.05, 0.1, 0.15, 0.2])
+                 max_depth=[5, 25, 100, 250],
+                 min_samples_split=[0.01, 0.1, 0.15, 0.3],
+                 min_samples_leaf=[0.01, 0.1, 0.15, 0.3])
 
-rf = random_forest(X_train, y_train, param_grid=rf_params, n_iter=2722,
-                   folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
-                   return_fit_time=show_time, warm_start=True)
-# Search ~60% of the hyperparameter space
+rf_cv = random_forest(X_train, y_train, param_grid=rf_params, n_iter=960,
+                      folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
+                      return_fit_time=show_time)
+print(12*"-", "\n")
+rf = rf_cv.best_estimator_
+print(rf)
+print(12*"-", "\n")
+print("Random Forest test score (R2) :", r2_score(y_test, rf.predict(X_test)))
+print(36*"=", "\n")
 
 # Save model(s)
-print(24*"#")
-print(rf.best_estimator_)
-save_models(rf.best_estimator_)
+save_models(rf)

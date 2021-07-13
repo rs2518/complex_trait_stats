@@ -50,7 +50,14 @@ MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
               "Elastic Net":"ElasticNet_model.gz",
               "PLS":"PLSRegression_model.gz",
               "Random Forest":"RandomForestRegressor_model.gz",
-              "MLP":"MLP_model.gz"}
+              "MLP":"MLPRegressor_model.gz"}
+#MODEL_DICT = {"Linear Regression":"LinearRegression_model.gz",
+#              "Lasso":"Lasso_model.gz",
+#              "Ridge":"Ridge_model.gz",
+#              "Elastic Net":"ElasticNet_model.gz",
+#              "PLS":"PLSRegression_model.gz",
+#              "Random Forest":"RandomForestRegressor_model.gz",
+#              "MLP":"MLP_model.gz"}
 
 TRAIN_TEST_PARAMS = dict(test_size=0.3, random_state=1010)
 CV_FOLDS = 10
@@ -662,15 +669,15 @@ def validate_sample(estimators, X, y, n_jobs=None, scoring=None, n_repeats=5,
         
     for i, (key, estimator) in enumerate(estimators.items()):            
         # Get estimator name then calculate permutation importance
-        if key == "MLP":            
-            # Circumvent annoying Keras warnings
-            if hasattr(Xs, "iloc"):
-                Xs = Xs.copy().values
-            if hasattr(y, "iloc"):
-                ys = ys.copy().values
+        #if key == "MLP":            
+        #    # Circumvent annoying Keras warnings
+        #    if hasattr(Xs, "iloc"):
+        #        Xs = Xs.copy().values
+        #    if hasattr(y, "iloc"):
+        #        ys = ys.copy().values
             
-            # Set dimension for MLP input layer
-            estimator.set_params(input_dim=Xs.shape[1])
+        #    # Set dimension for MLP input layer
+        #    estimator.set_params(input_dim=Xs.shape[1])
             
         scorer = check_scoring(estimator, scoring=scoring)
         
@@ -792,15 +799,15 @@ def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
     # Loop over estimators
     for name, estimator in estimators.items():
         
-        # Get estimator name then calculate permutation importance
-        if name == "MLP":
-            # jobs = None    # n_jobs not supported for KerasRegressor
+        ## Get estimator name then calculate permutation importance
+        #if name == "MLP":
+        #    # jobs = None    # n_jobs not supported for KerasRegressor
             
-            # Circumvent annoying Keras warnings
-            if hasattr(X, "iloc"):
-                X = X.copy().values
-            if hasattr(y, "iloc"):
-                y = y.copy().values
+        #    # Circumvent annoying Keras warnings
+        #    if hasattr(X, "iloc"):
+        #        X = X.copy().values
+        #    if hasattr(y, "iloc"):
+        #        y = y.copy().values
                 
         # else:
         #     jobs = n_jobs

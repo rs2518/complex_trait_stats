@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 
 from cts.models._penalised_regression import (lasso_regression,
                                               ridge_regression,
@@ -47,22 +48,35 @@ en_params = dict(alpha=np.logspace(-8, 8, 17),
                  l1_ratio=np.linspace(0, 1, 41))
 pr_params = {k:v for k, v in en_params.items() if k == "alpha"}
 
-lasso = lasso_regression(X_train, y_train, param_grid=pr_params, 
-                         folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
-                         return_fit_time=show_time, warm_start=True)
-ridge = ridge_regression(X_train, y_train, param_grid=pr_params,
-                         folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
-                         return_fit_time=show_time)
-enet = enet_regression(X_train, y_train, param_grid=en_params,
-                       folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
-                       return_fit_time=show_time, warm_start=True)
+lasso_cv = lasso_regression(X_train, y_train, param_grid=pr_params, 
+                            folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
+                            return_fit_time=show_time)
+print(12*"-", "\n")
+lasso = lasso_cv.best_estimator_
+print(lasso)
+print(12*"-", "\n")
+print("Lasso test score (R2) :", r2_score(y_test, lasso.predict(X_test)))
+print(36*"=", "\n")
+
+ridge_cv = ridge_regression(X_train, y_train, param_grid=pr_params,
+                            folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
+                            return_fit_time=show_time)
+print(12*"-", "\n")
+ridge = ridge_cv.best_estimator_
+print(ridge)
+print(12*"-", "\n")
+print("Ridge test score (R2) :", r2_score(y_test, ridge.predict(X_test)))
+print(36*"=", "\n")
+
+enet_cv = enet_regression(X_train, y_train, param_grid=en_params,
+                          folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,
+                          return_fit_time=show_time)
+print(12*"-", "\n")
+enet = enet_cv.best_estimator_
+print(enet)
+print(12*"-", "\n")
+print("ElasticNet test score (R2) :", r2_score(y_test, enet.predict(X_test)))
+print(36*"=", "\n")
 
 # Save model(s)
-print(24*"#")
-print(lasso.best_estimator_)
-print(24*"#")
-print(ridge.best_estimator_)
-print(24*"#")
-print(enet.best_estimator_)
-models = [lasso.best_estimator_, ridge.best_estimator_, enet.best_estimator_]
-save_models(models)
+save_models([lasso, ridge, enet])

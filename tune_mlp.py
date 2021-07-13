@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 
+from itertools import chain, product
 from sklearn.model_selection import train_test_split
-from tensorflow.config.threading import (set_inter_op_parallelism_threads,
-                                          set_intra_op_parallelism_threads)
+from sklearn.metrics import r2_score
 
 from cts.models._neural_network import multilayer_perceptron
     
@@ -40,52 +40,29 @@ seed = 1010
 show_time = True
 n_jobs = -1
 
-# Set number of threads
-num_threads = 80    # Set to match ncpus
-set_inter_op_parallelism_threads(num_threads)
-set_inter_op_parallelism_threads(num_threads)
-
 
 # Multilayer Perceptron
 # ---------------------
-first_neurons=[1, 5, 10, 15, 25, 50]
-hidden_neurons=[1, 5, 10, 15, 25, 50]
-activation=["relu"]
-last_activation=["relu", None]
-dropout=[0.01, 0.1, 0.2]
-l1=[1e-02, 1e-04, 1e-06, 1e-08]
-l2=[1e-02, 1e-04, 1e-06, 1e-08]
-epochs=[10, 500, 1000, 5000, 10000]
-batch_size=[20, 100, 500, 1000, 5000]
+n_neurons = np.array([1, 5, 10, 25, 50])
+max_hidden_layers = 3
+hidden_layer_sizes = list(chain(*[list(product(n_neurons, repeat=r+1))
+                                  for r in range(max_hidden_layers)]))
 
-one_layer_params = dict(hidden_layers=[1],
-                        first_neurons=first_neurons,
-                        hidden_neurons=[None],
-                        activation=activation,
-                        last_activation=last_activation,
-                        dropout=dropout,
-                        l1=l1,
-                        l2=l2,
-                        epochs=epochs,
-                        batch_size=batch_size)    # Single hidden layer
-multi_layer_params = dict(hidden_layers=[2, 3],
-                          first_neurons=first_neurons,
-                          hidden_neurons=hidden_neurons,
-                          activation=activation,
-                          last_activation=last_activation,
-                          dropout=dropout,
-                          l1=l1,
-                          l2=l2,
-                          epochs=epochs,
-                          batch_size=batch_size)    # Multiple hidden layers
-
-mlp_params = [one_layer_params, multi_layer_params]
-mlp = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
-                            n_iter=50400, folds=CV_FOLDS, n_jobs=n_jobs,
-			    random_state=seed, return_fit_time=show_time)
-# Search ~50% of the hyperparameter space
+mlp_params = dict(hidden_layer_sizes=hidden_layer_sizes,
+                  activation=["relu", "identity"],
+                  solver=["sgd"],
+                  batch_size=[200, 1000, 5000],
+                  learning_rate=["constant", "invscaling", "adaptive"],
+                  early_stopping=[False, True])
+mlp_cv = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
+                               n_iter=3780, folds=CV_FOLDS, n_jobs=n_jobs,
+			       random_state=seed, return_fit_time=show_time)
+print(12*"-", "\n")
+mlp = mlp_cv.best_estimator_
+print(mlp)
+print(12*"-", "\n")
+print("MLP test score (R2) :", r2_score(y_test, mlp.predict(X_test)))
+print(36*"=", "\n")
 
 # Save model(s)
-print(24*"#")
-print(mlp.best_estimator_)
-save_models(mlp.best_estimator_)
+save_models(mlp)
