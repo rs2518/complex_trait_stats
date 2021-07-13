@@ -23,7 +23,7 @@ __pycache__/
 scrap/
 
 # Setup
-#setup.yml
+setup_gpu.yml
 
 # Test scripts
 preprocess/process_geneatlas_newtest.py

@@ -427,8 +427,8 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
     features = coef_matrix.index
     coefs = coef_matrix.values
     positions = [i+0.5 for i in range(len(features))]
-    vlim = np.amax(np.abs(coefs))*1.05
-    
+    vlim = min(np.amax(np.abs(coefs))*1.05, 7)
+
     fig, axes = plt.subplots(1, 2, figsize=(12,8), sharey=True)
     plt.suptitle(title, fontsize=16)
     
@@ -776,11 +776,12 @@ def permutation_importance(estimator, X, y, scoring=None, n_repeats=5,
     random_state = check_random_state(random_state)
     random_seed = random_state.randint(np.iinfo(np.int32).max + 1)
 
+    sample_weight = None
     scorer = check_scoring(estimator, scoring=scoring)
     baseline_score = scorer(estimator, X, y)
 
     scores = Parallel(n_jobs=n_jobs)(delayed(_calculate_permutation_scores)(
-        estimator, X, y, col_idx, random_seed, n_repeats, scorer
+        estimator, X, y, sample_weight, col_idx, random_seed, n_repeats, scorer
     ) for col_idx in range(X.shape[1]))
 
     scores = np.array(scores)
