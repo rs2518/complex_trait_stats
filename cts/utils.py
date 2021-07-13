@@ -441,7 +441,8 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
                 yticklabels=features, ax=axes[1],
                 **hm_kwargs)
     axes[1].set_xlabel("Iteration #")
-    
+    axes[1].tick_params(bottom=False)
+
     plt.tight_layout()
     # plt.show()
     
