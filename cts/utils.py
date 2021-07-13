@@ -173,6 +173,9 @@ def save_models(models):
     Model filenames are determined by '__name__' attribute except for MLP 
     ('PickleableKerasRegressor' is replaced with 'MLP')
     """
+    if not isinstance(models, list):
+        models = [models]
+
     # Create 'saved_models' if it doesn't exist
     dir_path = os.path.join(MODEL_PATH, "saved_models")
     create_directory(dir_path)
