@@ -71,7 +71,8 @@ def load_dataframe(file):
     """Load data from ROOT folder
     """
     filepath = os.path.join(ROOT, "data", file)
-    data = pd.read_csv(filepath, index_col=6)
+    data = pd.read_csv(filepath, index_col=5)
+    # data = pd.read_csv(filepath, index_col=6)    # With start/End position
     
     data.drop(data.columns[0], axis=1, inplace=True)
     data = _remove_zero_pval(data)
