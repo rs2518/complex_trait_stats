@@ -10,7 +10,7 @@ import pandas as pd
 # ---------
 # Randomly select row indices then read randomly selected rows of data
 
-root_dir = "Desktop/Term 3 MSc Project/complex_trait_stats"
+root_dir = "/rds/general/project/medbio-berlanga-group/live/projects/ml_trait_prediction/scripts/complex_trait_stats"
 directory = os.path.join(root_dir, "data/geneatlas")
 trait = "50-0.0"
 path = os.path.join(directory, "results", trait)
@@ -107,8 +107,13 @@ renamed_cols = {'ALLELE' : 'Allele',
                 'NBETA-50-0.0' : 'Beta',
                 'NSE-50-0.0' : 'SE',
                 'PV-50-0.0' : 'p_value',
-                'HWE-P' : 'HWE_P',
-                'Position' : 'start_position'}
+                'HWE-P' : 'HWE_P'}
+# renamed_cols = {'ALLELE' : 'Allele',
+#                 'NBETA-50-0.0' : 'Beta',
+#                 'NSE-50-0.0' : 'SE',
+#                 'PV-50-0.0' : 'p_value',
+#                 'HWE-P' : 'HWE_P',
+#                 'Position' : 'start_position'}
 merged_data.rename(columns = renamed_cols, inplace = True)
 
 # Recode false missing data in 'iscore'
@@ -120,18 +125,20 @@ indices_iscore = list(merged_data[
 for index in indices_iscore:
     merged_data.loc[index, 'iscores'] = merged_data.loc[index, 'iscore']
 
+# Drop redundant columns
+merged_data.drop(['iscore', 'Allele'], axis = 1, inplace = True)
 
-# Create 'end_position' column and drop redundant columns
-merged_data['tmp'] = \
-    [len(a)-len(b) for a, b in zip(merged_data['A1'], merged_data['A2'])]
-merged_data['end_position'] = \
-    merged_data['start_position'] + merged_data['tmp']
-    
-merged_data.drop(['iscore', 'Allele', 'tmp'], axis = 1, inplace = True)
+# # Create 'end_position' column and drop redundant columns
+# merged_data['tmp'] = \
+#     [len(a)-len(b) for a, b in zip(merged_data['A1'], merged_data['A2'])]
+# merged_data['end_position'] = \
+#     merged_data['start_position'] + merged_data['tmp']
+# merged_data.drop(['iscore', 'Allele', 'tmp'], axis = 1, inplace = True)
 
 
 # Reorder columns
-main = ["Chromosome", "start_position", "end_position", "A1", "A2"]
+main = ["Chromosome", "Position", "A1", "A2"]
+# main = ["Chromosome", "start_position", "end_position", "A1", "A2"]
 cols = merged_data.columns.to_list()
 cols.append(cols.pop(cols.index("p_value")))
 cols = main + [col for col in cols if col not in main]
