@@ -428,7 +428,13 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
     features = coef_matrix.index
     coefs = coef_matrix.values
     positions = [i+0.5 for i in range(len(features))]
-    vlim = min(np.amax(np.abs(coefs))*1.05, 7)
+    
+    uq = np.amax(np.percentile(coefs, 75, axis=1))
+    lq = np.amin(np.percentile(coefs, 25, axis=1))
+    if uq-lq>20:
+        vlim = np.amax(np.abs([lq, uq]))
+    else:
+        vlim = np.amax(np.abs(coefs))*1.05
 
     fig, axes = plt.subplots(1, 2, figsize=(12,8), sharey=True)
     plt.suptitle(title, fontsize=16)
