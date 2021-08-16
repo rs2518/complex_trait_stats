@@ -531,6 +531,7 @@ def plot_rf_feature_importance(forest, feature_names, palette="hls",
         sorted_idx = (-importances).argsort()
     
     importances = forest.feature_importances_
+    
     cmap = sns.color_palette(palette=palette,
                              n_colors=len(importances[importances > 0]),
                              desat=.65)
@@ -539,6 +540,10 @@ def plot_rf_feature_importance(forest, feature_names, palette="hls",
     err = np.std([tree.feature_importances_ for tree in forest.estimators_],
                  axis=0)
     
+    tab = np.array([importances[sorted_idx].ravel(), err[sorted_idx].ravel()]).T
+    print(pd.DataFrame(tab, index=feature_names[sorted_idx],
+                       columns=["mean", "std"]))
+
     fig, ax = plt.subplots(figsize=(8,8))
     ax.barh(y_ticks, importances[sorted_idx], xerr=err[sorted_idx],
             color=cmap, **kwargs)
