@@ -39,6 +39,10 @@ print(df.value_counts(["A1", "A2"])/df.value_counts(["A1", "A2"]).sum())
 print(df.value_counts(["A1"])/df.value_counts(["A1"]).sum())
 print(df.value_counts(["A2"])/df.value_counts(["A2"]).sum())
 
+# Hardy-Weinberg p-value
+print("HWE_P < 0.05 :", df[df["HWE_P"]<=0.05]["HWE_P"].shape[0]/len(df))
+print("HWE_P < 0.005 :", df[df["HWE_P"]<=0.005]["HWE_P"].shape[0]/len(df))
+
 # Descriptive statistics
 desc = df.describe(include="all").loc[[
     "mean", "50%", "std", "min", "max", "top", "freq"]].T
