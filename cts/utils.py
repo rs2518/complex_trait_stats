@@ -641,27 +641,20 @@ def _validation_permutation_score(estimator, X, y, col_idx, random_state,
                                       scorer=scorer)
 
     
-def validate_sample(estimators, X, y, n_jobs=None, scoring=None, n_repeats=5,
+def validate_sample(estimator, X, y, n_jobs=None, scoring=None, n_repeats=5,
                     positive_ctrl=True, random_state=None, version="fn",
-                    return_fitted_estimators=False, control_params={}):
+                    verbose=0, control_params={}):
     """Model validation for models
     
     Used to carry out internal validation on individual samples.
     
     Returns dataframe of differences between the permuted scores and baseline
     score for the given estimator after fitting on the data.
-    Optionally returns dictionary of estimators (after fitting with additional
-    control feature) and baseline scores if return_fitted_estimators=True.
     
     For negative control validation (i.e. positive_ctrl=False), 'version'
     returns information on the true positive rate 'tpr' or the false positive
     rate 'fpr'
-    """    
-    # if not hasattr(estimators, "__iter__"):
-    #     estimators = [estimators]
-    # if random_state is not None:
-    #     control_params["random_state"] = random_state
-    
+    """
     # Initial seed generator using random_state
     r = check_random_state(random_state)
     rng = r.randint(np.iinfo(np.int32).max+1, size=n_repeats)
@@ -678,60 +671,32 @@ def validate_sample(estimators, X, y, n_jobs=None, scoring=None, n_repeats=5,
     ys = y.copy()
     
     # Create arrays to store results
-    scores = np.zeros((n_repeats, len(estimators)))
-    baseline_scores = np.zeros(len(estimators))
-    models = estimators.keys()
-    estimators = estimators.copy()    # Break links to original list
-        
-    for i, (key, estimator) in enumerate(estimators.items()):            
-        # Get estimator name then calculate permutation importance
-        #if key == "MLP":            
-        #    # Circumvent annoying Keras warnings
-        #    if hasattr(Xs, "iloc"):
-        #        Xs = Xs.copy().values
-        #    if hasattr(y, "iloc"):
-        #        ys = ys.copy().values
-            
-        #    # Set dimension for MLP input layer
-        #    estimator.set_params(input_dim=Xs.shape[1])
-            
-        scorer = check_scoring(estimator, scoring=scoring)
-        
-        if positive_ctrl:
-            estimator.fit(Xs, ys)
-            baseline_scores[i] = scorer(estimator, Xs, ys)
-        else:
-            if version == "tpr":
-                baseline_scores[i] = scorer(estimator, Xs, ys)
-            elif version == "fpr":
-                init_seed = r.randint(np.iinfo(np.int32).max)
-                baseline_scores[i] = \
-                    _neg_permutation_score(estimator=estimator, X=Xs, y=ys,
-                                           random_state=init_seed,
-                                           scorer=scorer)
-        
-        arr = Parallel(n_jobs=n_jobs)(delayed(_validation_permutation_score)(
-            estimator, Xs, ys, Xs.shape[1]-1, seed, scorer, positive_ctrl
-            ) for seed in rng)
-        
-        scores[:,i] = arr
-    
-        # # Calculate difference in baseline and permuted scores
-        # scores[:,i] = baseline_scores[i] - scores[:,i]
-        
-    scores = pd.DataFrame(scores, index=np.arange(1, n_repeats+1),
-                          columns=models)
-    model_dict = dict(estimator_name=models,
-                      fitted_estimator=estimators)
-    
-    if return_fitted_estimators:
-        return Bunch(scores=scores, baseline_scores=baseline_scores,
-                     model_dict=model_dict)
+    scorer = check_scoring(estimator, scoring=scoring)
+
+    # scores = np.zeros((n_repeats, len(estimators)))
+    if positive_ctrl:
+        estimator.fit(Xs, ys)
+        baseline_score = scorer(estimator, Xs, ys)
     else:
-        return Bunch(scores=scores, baseline_scores=baseline_scores)
+        if version == "tpr":
+            baseline_score = scorer(estimator, Xs, ys)
+        elif version == "fpr":
+            init_seed = r.randint(np.iinfo(np.int32).max)
+            baseline_score = \
+                _neg_permutation_score(estimator=estimator, X=Xs, y=ys,
+                                       random_state=init_seed,
+                                       scorer=scorer)
+    
+    scores = Parallel(n_jobs=n_jobs, verbose=verbose)(delayed(
+        _validation_permutation_score)(
+            estimator, Xs, ys, Xs.shape[1]-1, seed, scorer, positive_ctrl)
+            for seed in rng)
+    scores = np.array(scores)
+    
+    return Bunch(scores=scores, baseline_score=baseline_score)
     
     
-def _bootstrap_wrapper(func, estimators, X, y, n_samples=3,
+def _bootstrap_wrapper(func, estimator, X, y, n_samples=3,
                        sample_size=0.3, random_state=None, **kwargs):
     """Wrapper function for performing operation over bootstrapped samples
         
@@ -743,6 +708,10 @@ def _bootstrap_wrapper(func, estimators, X, y, n_samples=3,
     res = {}
     idxs = np.arange(X.shape[0])
     for n in range(n_samples):
+
+        # Print sample for log file
+        print("Running sample ", n+1, " ...")
+
         sample_idx = \
             train_test_split(
                 idxs, train_size=sample_size,
@@ -756,31 +725,32 @@ def _bootstrap_wrapper(func, estimators, X, y, n_samples=3,
             Xs = X[sample_idx, :].copy()
         
         # Add sample index into Bunch object
-        s = func(estimators, Xs, ys, random_state=random_state, **kwargs)
+        s = func(estimator, Xs, ys, random_state=random_state, **kwargs)
         s.sample = sample_idx
         res["sample_"+str(n+1)] = s
     
     return res
 
 
-def model_validation(estimators, X, y, n_samples=3, n_repeats=5,
+def model_validation(estimator, X, y, n_samples=3, n_repeats=5,
                      sample_size=0.3, positive_ctrl=True,
-                     random_state=None, **kwargs):
+                     random_state=None, verbose=0, **kwargs):
     """Run validate_sample over _bootstrap_wrapper
     """
     # Set function arguments
     kwargs["n_repeats"] = n_repeats
     kwargs["positive_ctrl"] = positive_ctrl
     
-    return _bootstrap_wrapper(validate_sample, estimators=estimators,
+    return _bootstrap_wrapper(validate_sample, estimator=estimator,
                               X=X, y=y, n_samples=n_samples,
                               sample_size=sample_size,
                               random_state=random_state,
+                              verbose=verbose,
                               **kwargs)
 
 
 def permutation_importance(estimator, X, y, scoring=None, n_repeats=5,
-                           n_jobs=None, random_state=None):
+                           n_jobs=None, random_state=None, verbose=0):
     """Variation of sklearn's permutation importance
     
     Runs permutation importance as a hypothesis test
@@ -792,54 +762,34 @@ def permutation_importance(estimator, X, y, scoring=None, n_repeats=5,
     scorer = check_scoring(estimator, scoring=scoring)
     baseline_score = scorer(estimator, X, y)
 
-    scores = Parallel(n_jobs=n_jobs)(delayed(_calculate_permutation_scores)(
-        estimator, X, y, sample_weight, col_idx, random_seed, n_repeats, scorer
-    ) for col_idx in range(X.shape[1]))
+    scores = Parallel(n_jobs=n_jobs, verbose=verbose)(delayed(
+        _calculate_permutation_scores)(estimator, X, y, sample_weight,
+                                       col_idx, random_seed,
+                                       n_repeats, scorer)
+                                       for col_idx in range(X.shape[1]))
 
     scores = np.array(scores)
     
     return Bunch(baseline_score=baseline_score, scores=scores)
 
 
-def perm_importances(estimators, X, y, n_samples=3, n_repeats=5,
+def perm_importances(estimator, X, y, n_samples=3, n_repeats=5,
                      sample_size=0.3, scoring=None, n_jobs=-2,
-                     random_state=None, **kwargs):
+                     random_state=None, verbose=0,  **kwargs):
     """Run sklearn permutation_importances over _bootstrap_wrapper
     """
     # Set function arguments
     kwargs["n_repeats"] = n_repeats
     kwargs["scoring"] = scoring
-            
-    # Create dictionary to store results
-    importance_dict = {}
+    kwargs["n_jobs"] = n_jobs
     
-    # Loop over estimators
-    for name, estimator in estimators.items():
-        
-        ## Get estimator name then calculate permutation importance
-        #if name == "MLP":
-        #    # jobs = None    # n_jobs not supported for KerasRegressor
-            
-        #    # Circumvent annoying Keras warnings
-        #    if hasattr(X, "iloc"):
-        #        X = X.copy().values
-        #    if hasattr(y, "iloc"):
-        #        y = y.copy().values
-                
-        # else:
-        #     jobs = n_jobs
-        
-        # Store results
-        kwargs["n_jobs"] = n_jobs
-        importance_dict[name] = \
-            _bootstrap_wrapper(permutation_importance,
-                               estimators=estimator,
-                               X=X, y=y, n_samples=n_samples,
-                               sample_size=sample_size,
-                               random_state=random_state,
-                               **kwargs)
-            
-    return importance_dict
+    return _bootstrap_wrapper(permutation_importance,
+                              estimator=estimator,
+                              X=X, y=y, n_samples=n_samples,
+                              sample_size=sample_size,
+                              random_state=random_state,
+                              verbose=verbose,
+                              **kwargs)
 
 
 def get_p(n, n_distribution, one_tailed=True, alternative="greater"):
@@ -868,99 +818,69 @@ def get_p(n, n_distribution, one_tailed=True, alternative="greater"):
     return Bunch(p_val=p)
 
  
-def _calculate_prop(results, alpha=0.05, one_tailed=True,
-                    alternative="greater", **kwargs):
-    """Calculate combined p-value across all samples
+def _compute_proportions(results, alpha=0.05, one_tailed=True,
+                         alternative="greater", **kwargs):
+    """Compute proportion of significant hypothesis tests
     
     **kwargs are from 'multipletests'
     """
     keys = list(results.keys())
-    models = results[keys[0]].scores.columns
     n_samples = len(keys)
-    n_models = len(models)
+    a = np.array([get_p(n=results[keys[sample]].baseline_score,
+                        n_distribution=results[keys[sample]].scores,
+                        one_tailed=one_tailed,
+                        alternative=alternative).p_val
+                  for sample in range(n_samples)])
     
-    a = np.zeros((n_samples, n_models))
-    
-    # Loop over samples
-    for sample in range(n_samples):
+    inds, _, _, _ = multipletests(a, alpha=alpha, **kwargs)
         
-        baseline_scores = results[keys[sample]].baseline_scores
-        scores = results[keys[sample]].scores.values
-        
-        # Loop over models
-        a[sample, :] = np.array([get_p(n=baseline_scores[i],
-                                       n_distribution=scores[:, i],
-                                       one_tailed=one_tailed,
-                                       alternative=alternative).p_val
-                                 for i in range(n_models)])
-            
-    # Correct p-value for each model
-    p = np.zeros_like(a)
-    inds = np.zeros_like(a)
-    for model in range(n_models):
-        inds[:, model],  p[:, model], _, _ = \
-            multipletests(a[:, model], alpha=alpha, **kwargs)
-    
     return inds.sum(axis=0)/inds.shape[0]
 
 
-def tabulate_validation(results, positive_ctrl=True, **kwargs):
-    """Tabulate validation results
-    """
-    a = results[list(results.keys())[0]]
-    models = a[list(a.keys())[0]].scores.columns.to_list()
-    
-    # Loop through noise parameters if positive control
-    tab = pd.DataFrame()
-    for key in results.keys():
-        if positive_ctrl:
-            col = float(key[(key.find("=")+1):])
-        else:
-            col = key
-        d = pd.DataFrame(data=_calculate_prop(results[key], **kwargs),
-                         index=models, columns=[col])
-        tab = pd.concat([tab, d], axis=1)    
-        
-    return tab
-
-
-def tabulate_perm(results, feature_names=None, alpha=0.05, one_tailed=True,
-                  alternative="greater", **kwargs):
-    """Tabulate permutation importance results
+def _compute_combined_p(results, alpha=0.05, one_tailed=True,
+                        alternative="greater", **kwargs):
+    """Compute combined p-value for each feature
     
     **kwargs are from 'multipletests'
     """
-    models = list(results.keys())
-    tmp = results[list(results.keys())[0]]
-    keys = list(tmp.keys())
-    
+    keys = list(results.keys())
     n_samples = len(keys)
-    n_features = tmp[list(tmp.keys())[0]].scores.shape[0]
-    n_models = len(models)
+    n_features = results[list(results.keys())[0]].scores.shape[0]
     
-    # Loop through models and samples
-    tab = np.zeros((n_features, n_models))
-    for j, model in enumerate(models):
-        a = np.zeros((n_features, n_samples))
-        for sample in range(n_samples):
-            baseline_score = results[model][keys[sample]].baseline_score
-            scores = results[model][keys[sample]].scores
+    a = np.array([get_p(n=results[keys[sample]].baseline_score,
+                        n_distribution=results[keys[sample]].scores[i, :],
+                        one_tailed=one_tailed,
+                        alternative=alternative).p_val
+                  for sample in range(n_samples)
+                  for i in range(n_features)]).reshape(-1, n_features).T
+    
+    # Combine p-values using Fisher's test across samples for each feature    
+    pvals = np.array([combine_pvalues(a[i, :])[1] for i in range(n_features)])
+    
+    # Multiple p-value correction across features
+    _, pvals_corrected, _, _ = multipletests(pvals, alpha=alpha, **kwargs)
+    
+    return pvals_corrected
+
+
+def tabulate_validation(results, index=None, positive_ctrl=True, **kwargs):
+    """Tabulate validation results
+    """
+    if index is None:
+        index = [""]
+    
+    d = {key:_compute_proportions(results[key], **kwargs)
+         for key in results.keys()}
             
-            a[:, sample] = np.array([get_p(n=baseline_score,
-                                           n_distribution=scores[i, :],
-                                           one_tailed=one_tailed,
-                                           alternative=alternative).p_val
-                                     for i in range(n_features)])
-        
-        # Combine p-values using Fisher's test across samples for each feature    
-        pvals = np.array([combine_pvalues(a[i, :])[1]
-                          for i in range(n_features)])
-        
-        # Multiple p-value correction across features
-        _, pvals_corrected, _, _ = multipletests(pvals, alpha=alpha, **kwargs)
-        tab[:, j] = pvals_corrected
-        
-    return pd.DataFrame(tab, index=feature_names, columns=models)
+    return pd.DataFrame(d, index=index)
+
+
+def tabulate_perm(results, index=None, columns=None, **kwargs):
+    """Tabulate permutation importance results
+    """
+    d = _compute_combined_p(results, **kwargs)
+    
+    return pd.DataFrame(d, index=index, columns=columns)
 
 
 def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",

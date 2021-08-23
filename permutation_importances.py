@@ -10,8 +10,7 @@ from cts.utils import (load_dataframe,
                        create_directory,
                        load_models,
                        perm_importances,
-                       tabulate_perm,
-                       plot_perm_importance)
+                       tabulate_perm)
 
 
 
@@ -28,6 +27,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 
 # Load fitted models
 models = load_models()
+
+# Set up array job
+m = int(os.environ["PBS_ARRAY_INDEX"])
+name = list(models.keys())[m-1]
+estimator = models[name]    # Adjust for zero-indexing
 
 
 
@@ -46,12 +50,12 @@ scoring = "r2"
 correction = "fdr_bh"
 
 # Permutation importances for each feature
-perms = perm_importances(models, X_test, y_test, scoring=scoring,
+perms = perm_importances(estimator, X_test, y_test, scoring=scoring,
                          n_samples=n_samples, n_repeats=n_repeats,
                          n_jobs=-1, random_state=seed)
 
 # Plot permutation importances
-perm_tab = tabulate_perm(perms, feature_names=X.columns, method=correction)
-fig = plot_perm_importance(perm_tab, edgecolor="white", alpha=0.75)
-figpath = os.path.join(path, "permutation_importances.png")
-fig.savefig(figpath)
+perm_tab = tabulate_perm(perms, index=X.columns, columns=[name],
+                         method=correction)
+perm_tab.to_csv(os.path.join(path,
+                             "tmp_perm_"+name.replace(" ", "_")+".csv"))
