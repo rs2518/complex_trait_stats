@@ -3,8 +3,6 @@ import os
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-from tensorflow.config.threading import (set_inter_op_parallelism_threads,
-					 set_intra_op_parallelism_threads)
 
 from cts.utils import ROOT, RAW_DATA, TRAIN_TEST_PARAMS
 from cts.utils import (load_dataframe,
@@ -12,8 +10,7 @@ from cts.utils import (load_dataframe,
                        create_directory,
                        load_models,
                        perm_importances,
-                       tabulate_perm,
-                       plot_perm_importance)
+                       tabulate_perm)
 
 
 
@@ -31,6 +28,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 # Load fitted models
 models = load_models()
 
+# Set up array job
+m = int(os.environ["PBS_ARRAY_INDEX"])
+name = list(models.keys())[m-1]
+estimator = models[name]    # Adjust for zero-indexing
+
 
 
 # =============================================================================
@@ -47,18 +49,13 @@ seed = 1
 scoring = "r2"
 correction = "fdr_bh"
 
-# Set number of threads
-num_threads = 80    # Set to match ncpus
-set_inter_op_parallelism_threads(num_threads)
-set_inter_op_parallelism_threads(num_threads)
-
 # Permutation importances for each feature
-perms = perm_importances(models, X_test, y_test, scoring=scoring,
+perms = perm_importances(estimator, X_test, y_test, scoring=scoring,
                          n_samples=n_samples, n_repeats=n_repeats,
                          n_jobs=-1, random_state=seed)
 
 # Plot permutation importances
-perm_tab = tabulate_perm(perms, feature_names=X.columns, method=correction)
-fig = plot_perm_importance(perm_tab, edgecolor="white", alpha=0.75)
-figpath = os.path.join(path, "permutation_importances.png")
-fig.savefig(figpath)
+perm_tab = tabulate_perm(perms, index=X.columns, columns=[name],
+                         method=correction)
+perm_tab.to_csv(os.path.join(path,
+                             "tmp_perm_"+name.replace(" ", "_")+".csv"))

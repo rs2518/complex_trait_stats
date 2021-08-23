@@ -10,8 +10,7 @@ from cts.utils import (load_dataframe,
                        create_directory,
                        load_models,
                        model_validation,
-                       tabulate_validation,
-                       plot_pos_validation)
+                       tabulate_validation)
 
 
 
@@ -29,6 +28,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 # Load unfitted models
 models = load_models(fitted=False)
 
+# Set up array job
+m = int(os.environ["PBS_ARRAY_INDEX"])
+name = list(models.keys())[m-1]
+estimator = models[name]    # Adjust for zero-indexing
+
 
 
 # =============================================================================
@@ -44,26 +48,24 @@ n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
-noise_params = [0., 10., 25., 50., 75., 100., 150.]
+noise_params = [0., 10., 25., 75., 150.]
 n_jobs = -1
 
 # Positive control validation vs. noise over bootstrapped samples
-pos_ctrl = {"sigma="+str(noise):model_validation(estimators=models,
-                                                 X=X_test, y=y_test,
-                                                 scoring=scoring,
-                                                 n_samples=n_samples,
-                                                 n_repeats=n_repeats,
-                                                 sample_size=sample_size,
-                                                 positive_ctrl=True,
-                                                 random_state=seed,
-                                                 control_params={
-                                                     "sigma":noise},
-						 n_jobs=n_jobs)
+pos_ctrl = {float(noise):model_validation(estimator=estimator,
+                                          X=X_test, y=y_test,
+                                          scoring=scoring,
+                                          n_samples=n_samples,
+                                          n_repeats=n_repeats,
+                                          sample_size=sample_size,
+                                          positive_ctrl=True,
+                                          random_state=seed,
+                                          control_params={"sigma":noise},
+                                          n_jobs=n_jobs)
             for noise in noise_params}
 
-# Plot positive control results
-results = tabulate_validation(pos_ctrl, positive_ctrl=True,
-                              method=correction)
-fig = plot_pos_validation(results, linestyle="--", marker="x")
-figpath = os.path.join(path, "positive_control_validation.png")
-fig.savefig(figpath)
+# Save positive control results
+pos_results = tabulate_validation(pos_ctrl, positive_ctrl=True, index=[name],
+                                  method=correction)
+pos_results.to_csv(os.path.join(path,
+                                "tmp_pos_"+name.replace(" ", "_")+".csv"))

@@ -52,8 +52,8 @@ mlp_params = dict(hidden_layer_sizes=hidden_layer_sizes,
                   activation=["relu", "identity"],
                   solver=["sgd"],
                   batch_size=[200, 1000, 5000],
-                  learning_rate=["constant", "invscaling", "adaptive"],
-                  early_stopping=[False, True])
+                  max_iter=[200, 1000, 5000],
+                  learning_rate=["constant", "adaptive"])
 mlp_cv = multilayer_perceptron(X_train, y_train, param_grid=mlp_params,
                                n_iter=3780, folds=CV_FOLDS, n_jobs=n_jobs,
 			       random_state=seed, return_fit_time=show_time)

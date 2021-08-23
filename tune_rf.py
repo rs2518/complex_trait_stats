@@ -45,8 +45,8 @@ n_jobs = -1
 rf_params = dict(n_estimators=[10, 100, 250, 500, 1000],
                  max_features=["auto", "sqrt", "log2"],
                  max_depth=[5, 25, 100, 250],
-                 min_samples_split=[0.01, 0.1, 0.15, 0.3],
-                 min_samples_leaf=[0.01, 0.1, 0.15, 0.3])
+                 min_samples_split=[0.001, 0.01, 0.1, 0.2],
+                 min_samples_leaf=[0.001, 0.01, 0.1, 0.2])
 
 rf_cv = random_forest(X_train, y_train, param_grid=rf_params, n_iter=960,
                       folds=CV_FOLDS, n_jobs=n_jobs, random_state=seed,

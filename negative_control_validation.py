@@ -10,8 +10,7 @@ from cts.utils import (load_dataframe,
                        create_directory,
                        load_models,
                        model_validation,
-                       tabulate_validation,
-                       plot_neg_validation)
+                       tabulate_validation)
 
 
 
@@ -28,6 +27,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 
 # Load fitted models
 models = load_models()
+
+# Set up array job
+m = int(os.environ["PBS_ARRAY_INDEX"])
+name = list(models.keys())[m-1]
+estimator = models[name]    # Adjust for zero-indexing
 
 
 
@@ -47,7 +51,7 @@ correction = "fdr_bh"
 n_jobs = -1
 
 # Negative control validation over bootstrapped samples
-neg_ctrl = {version:model_validation(estimators=models,
+neg_ctrl = {version:model_validation(estimator=estimator,
                                      X=X_test, y=y_test,
                                      scoring=scoring, n_samples=n_samples,
                                      sample_size=sample_size,
@@ -55,12 +59,11 @@ neg_ctrl = {version:model_validation(estimators=models,
                                      positive_ctrl=False,
                                      random_state=seed,
                                      version=version,
-				     n_jobs=n_jobs)
+                                     n_jobs=n_jobs)
             for version in ["tpr", "fpr"]}
 
-# Plot negative control results
-neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False,
+# Save negative control results
+neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False, index=[name],
                                   method=correction)
-fig = plot_neg_validation(neg_results)
-figpath = os.path.join(path, "negative_control_validation.png")
-fig.savefig(figpath)
+neg_results.to_csv(os.path.join(path,
+                                "tmp_neg_"+name.replace(" ", "_")+".csv"))
