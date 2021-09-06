@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 
@@ -42,9 +43,11 @@ estimator = models[name]    # Adjust for zero-indexing
 # Model reliance 
 # --------------
 # Set iterables and parameters
-n_samples = 1000
+n_samples = 2
 sample_size = 0.3
 n_repeats = 10000
+n_jobs = int(sys.argv[1])
+verbose = 10
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
@@ -52,7 +55,7 @@ correction = "fdr_bh"
 # Permutation importances for each feature
 perms = perm_importances(estimator, X_test, y_test, scoring=scoring,
                          n_samples=n_samples, n_repeats=n_repeats,
-                         n_jobs=-1, random_state=seed)
+                         n_jobs=n_jobs, verbose=verbose, random_state=seed)
 
 # Plot permutation importances
 perm_tab = tabulate_perm(perms, index=X.columns, columns=[name],

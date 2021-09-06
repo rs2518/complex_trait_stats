@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 
@@ -42,14 +43,15 @@ estimator = models[name]    # Adjust for zero-indexing
 # Positive control (perfectly correlated control feature)
 # -------------------------------------------------------
 # Set iterables and parameters
-n_samples = 1000
+n_samples = 2
 sample_size = 0.3
 n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
 noise_params = [0., 10., 25., 75., 150.]
-n_jobs = -1
+n_jobs = int(sys.argv[1])
+verbose = 1
 
 # Positive control validation vs. noise over bootstrapped samples
 pos_ctrl = {float(noise):model_validation(estimator=estimator,
@@ -61,7 +63,8 @@ pos_ctrl = {float(noise):model_validation(estimator=estimator,
                                           positive_ctrl=True,
                                           random_state=seed,
                                           control_params={"sigma":noise},
-                                          n_jobs=n_jobs)
+                                          n_jobs=n_jobs,
+                                          verbose=verbose)
             for noise in noise_params}
 
 # Save positive control results
