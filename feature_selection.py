@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 
@@ -49,7 +50,7 @@ linear_unfitted_models = {k:v for k, v in unfitted_models.items()
 sample_size = 0.3
 n_iters = 1000
 seed = 1
-n_jobs = -1
+n_jobs = int(sys.argv[1])
 
 # Produce stability plots for linear models
 coefs = coef_dict(estimators=linear_unfitted_models,

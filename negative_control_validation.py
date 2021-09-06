@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 
@@ -42,13 +43,14 @@ estimator = models[name]    # Adjust for zero-indexing
 # Negative control strategy (permuted labels)
 # -------------------------------------------
 # Set iterables and parameters
-n_samples = 1000
+n_samples = 2
 sample_size = 0.3
 n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
-n_jobs = -1
+n_jobs = int(sys.argv[1])
+verbose = 1
 
 # Negative control validation over bootstrapped samples
 neg_ctrl = {version:model_validation(estimator=estimator,
@@ -59,7 +61,8 @@ neg_ctrl = {version:model_validation(estimator=estimator,
                                      positive_ctrl=False,
                                      random_state=seed,
                                      version=version,
-                                     n_jobs=n_jobs)
+                                     n_jobs=n_jobs,
+                                     verbose=verbose)
             for version in ["tpr", "fpr"]}
 
 # Save negative control results
