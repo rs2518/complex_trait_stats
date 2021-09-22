@@ -3,7 +3,9 @@ import os
 import pandas as pd
 
 from cts.utils import ROOT
-from cts.utils import load_models, plot_perm_importance
+from cts.utils import (load_models,
+                       get_array_results,
+                       plot_perm_importance)
 
 
 # Get model names
@@ -16,8 +18,11 @@ prefix = "tmp_perm_"
     
 for name in names:
     try:
-        file = prefix+name.replace(" ", "_")+".csv"
-        d = pd.read_csv(os.path.join(path, file), index_col=0)
+        if name == "Random Forest":
+            d = get_array_results()
+        else:
+            file = prefix+name.replace(" ", "_")+".csv"
+            d = pd.read_csv(os.path.join(path, file), index_col=0)
         results = pd.concat([results, d], axis=1)
     except FileNotFoundError:
         print("Some model results are missing. Loop terminated.")

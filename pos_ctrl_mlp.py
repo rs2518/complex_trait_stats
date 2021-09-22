@@ -30,7 +30,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 models = load_models(fitted=False)
 
 # Set up array job
-m = int(os.environ["PBS_ARRAY_INDEX"])
+m = 7
 name = list(models.keys())[m-1]
 estimator = models[name]    # Adjust for zero-indexing
 
