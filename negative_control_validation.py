@@ -2,6 +2,7 @@ import os
 import sys
 
 import numpy as np
+import pandas as pd
 
 from sklearn.model_selection import train_test_split
     
@@ -10,8 +11,7 @@ from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
                        load_models,
-                       model_validation,
-                       tabulate_validation)
+                       model_validation)
 
 
 
@@ -43,14 +43,14 @@ estimator = models[name]    # Adjust for zero-indexing
 # Negative control strategy (permuted labels)
 # -------------------------------------------
 # Set iterables and parameters
-n_samples = 2
+n_samples = 1000
 sample_size = 0.3
 n_repeats = 10000
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
 n_jobs = int(sys.argv[1])
-verbose = 1
+verbose = 10
 
 # Negative control validation over bootstrapped samples
 neg_ctrl = {version:model_validation(estimator=estimator,
@@ -66,7 +66,6 @@ neg_ctrl = {version:model_validation(estimator=estimator,
             for version in ["tpr", "fpr"]}
 
 # Save negative control results
-neg_results = tabulate_validation(neg_ctrl, positive_ctrl=False, index=[name],
-                                  method=correction)
+neg_results = pd.DataFrame(neg_ctrl, index=[name])
 neg_results.to_csv(os.path.join(path,
                                 "tmp_neg_"+name.replace(" ", "_")+".csv"))

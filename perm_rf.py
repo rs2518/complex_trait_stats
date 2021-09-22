@@ -11,7 +11,7 @@ from cts.utils import (load_dataframe,
                        process_data,
                        create_directory,
                        load_models,
-                       perm_importances)
+                       perm_importances_array)
 
 
 
@@ -30,7 +30,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 models = load_models()
 
 # Set up array job
-m = int(os.environ["PBS_ARRAY_INDEX"])
+m = 6
 name = list(models.keys())[m-1]
 estimator = models[name]    # Adjust for zero-indexing
 
@@ -51,14 +51,16 @@ verbose = 10
 seed = 1
 scoring = "r2"
 correction = "fdr_bh"
+array_id = int(os.environ["PBS_ARRAY_INDEX"])
 
 # Permutation importances for each feature
-perm = perm_importances(estimator, X_test, y_test, scoring=scoring,
-                        n_samples=n_samples, n_repeats=n_repeats,
-                        n_jobs=n_jobs, verbose=verbose,
-                        method=correction, random_state=seed)
+perm = perm_importances_array(array_id=array_id, estimator=estimator,
+                              X=X_test, y=y_test, scoring=scoring,
+                              n_samples=n_samples, n_repeats=n_repeats,
+                              n_jobs=n_jobs, verbose=verbose,
+                              random_state=seed)
 
 # Plot permutation importances
-perm_results = pd.DataFrame(perm, index=X.columns, columns=[name])
-perm_results.to_csv(os.path.join(path,
-                                 "tmp_perm_"+name.replace(" ", "_")+".csv"))
+perm_results = pd.DataFrame(perm, index=X.columns)
+prefix = "rf_perm_array_"+str(array_id)
+perm_results.to_csv(os.path.join(path, prefix+".csv"))
