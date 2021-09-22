@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 
@@ -38,7 +39,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, **TRAIN_TEST_PARAMS)
 # Set seed and n_jobs. Print fit times
 seed = 1010
 show_time = True
-n_jobs = -1
+n_jobs = int(sys.argv[1])
 
 
 # Multilayer Perceptron
