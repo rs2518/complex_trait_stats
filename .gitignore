@@ -36,3 +36,7 @@ preprocess/process_anno.py
 testing/
 path_test.py
 cts/test.py
+
+# Stand-alone job scripts
+perm_rf.py
+pos_ctrl_mlp.py
