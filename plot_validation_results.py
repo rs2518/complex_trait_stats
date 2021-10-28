@@ -36,9 +36,11 @@ for name in names:
 
 # Plot results
 if positive_ctrl:
-    fig = plot_pos_validation(results)
+    fig = plot_pos_validation(results, marker="x", linestyle="--")
     figpath = os.path.join(path, "positive_control_validation.png")
 else:
     fig = plot_neg_validation(results)
     figpath = os.path.join(path, "negative_control_validation.png")    
-fig.savefig(figpath)
+fig.savefig(figpath, bbox_inches="tight")
+
+print(results)

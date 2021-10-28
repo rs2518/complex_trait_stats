@@ -986,9 +986,8 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
         title = r"Proportion of samples where $H_0$ was rejected"
 
     models = results.index.to_list()
-    # noise = results.columns.to_list()
-    # x = np.arange(len(noise))
-    x = results.columns.to_list()
+    x = [float(s) for s in results.columns.to_list()]
+    # x = results.columns.to_list()
     cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
 
     # Lineplot for each model
@@ -998,8 +997,7 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
         y = results.values[i, :]
         plt.plot(x, y, label=model, color=cmap[i], **kwargs)
 
-    ax.set_xticks(x)
-    # ax.set_xticklabels(noise)
+    # ax.set_xticks(x)
     ax.set_ylim([0, 1.05])
     plt.xlabel(r"Standard Deviation ($\sigma$)")
     plt.ylabel("Proportion")
