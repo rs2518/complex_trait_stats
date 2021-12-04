@@ -439,18 +439,20 @@ def plot_stability(coef_matrix, title=None, vline_kwargs={},
         vlim = np.amax(np.abs(coefs))*1.05
 
     fig, axes = plt.subplots(1, 2, figsize=(12,8), sharey=True)
-    plt.suptitle(title, fontsize=16)
+    plt.suptitle(title, fontsize=17)
 
     # sns.boxplot(data=coef_matrix.T, orient="h", ax=axes[0], **bp_kwargs)
     axes[0].boxplot(coefs.T, vert=False, labels=features,
                     positions=positions, **bp_kwargs)
     axes[0].axvline(**vline_kwargs)
-    axes[0].set_xlabel("Model coefficients")
+    axes[0].set_xlabel("Model coefficients", fontsize=14)
+    axes[0].set_ylabel("Features", fontsize=14)
+    axes[0].tick_params(right=True)
     sns.heatmap(data=coefs, vmin=-vlim, vmax=vlim, cmap="vlag",
                 yticklabels=features, ax=axes[1],
                 **hm_kwargs)
-    axes[1].set_xlabel("Iteration #")
-    axes[1].tick_params(bottom=False)
+    axes[1].set_xlabel("Iteration #", fontsize=14)
+    axes[1].tick_params(bottom=False, right=True)
 
     plt.tight_layout()
     # plt.show()
@@ -462,10 +464,12 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     """Plot heatmap mean model coefficients across dictionary of models
     """
     # Set default suptitle and kwargs for plots
-    if title is None:
-        title = "Mean coefficients"
     models = list(coef_dict.keys())
     features = coef_dict[list(coef_dict.keys())[0]].index
+    iters = coef_dict[list(coef_dict.keys())[0]].shape[1]
+    if title is None:
+        title = "Mean feature coefficients from " + \
+                str(iters) + " sampling iterations"
 
     # Return mean coefficients
     mean_coefs = _mean_summary(coef_dict)
@@ -474,15 +478,15 @@ def plot_mean_coef_heatmap(coef_dict, title=None, hm_kwargs={}):
     a = np.clip(np.amax(np.abs(mean_coefs)), a_min=None, a_max=[1.3])[0]
     vlim = a*1.05
 
-    fig, ax = plt.subplots(figsize=(8,8))
-    plt.suptitle(title, fontsize=16)
+    fig, ax = plt.subplots(figsize=(10,10))
+    plt.suptitle(title, fontsize=15)
 
     sns.heatmap(data=mean_coefs, vmin=-vlim, vmax=vlim, cmap="vlag",
                 xticklabels=models, yticklabels=features, ax=ax,
                 **hm_kwargs)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=-45)
-    ax.set_xlabel("Model")
-    ax.set_ylabel("Features")
+    ax.set_xlabel("Model", fontsize=14)
+    ax.set_ylabel("Features", fontsize=14)
 
     plt.tight_layout()
     # plt.show()
@@ -542,17 +546,21 @@ def plot_rf_feature_importance(forest, feature_names, palette="hls",
     err = np.std([tree.feature_importances_ for tree in forest.estimators_],
                  axis=0)
 
-    tab = np.array([importances[sorted_idx].ravel(), err[sorted_idx].ravel()]).T
+    tab = np.array([importances[sorted_idx].ravel(),
+                    err[sorted_idx].ravel()]).T
     print(pd.DataFrame(tab, index=feature_names[sorted_idx],
                        columns=["mean", "std"]))
 
-    fig, ax = plt.subplots(figsize=(8,8))
+    fig, ax = plt.subplots(figsize=(10,10))
     ax.barh(y_ticks, importances[sorted_idx], xerr=err[sorted_idx],
             color=cmap, **kwargs)
+    ax.grid(which='major', axis='x', linestyle='--')
     ax.set_xlim(0,1)
     ax.set_yticklabels(feature_names[sorted_idx])
     ax.set_yticks(y_ticks)
-    ax.set_title(title)
+    ax.set_title(title, fontsize=17)
+    ax.set_xlabel("Normalised scores", fontsize=15)
+    ax.set_ylabel("Features", fontsize=15)
 
     plt.tight_layout()
     # plt.show()
@@ -900,17 +908,17 @@ def get_array_results(alpha=ALPHA, method=CORRECTION):
 
 
 def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
-                      title=None, figsize=(10, 10), palette="hls",
+                      title=None, figsize=(9, 9), palette="hls",
                       **kwargs):
     """Plot true y values against predicted y values
     """
     # Set plot arguments
     if title is None:
-        title = "True vs. Predicted"
+        title = "True values vs. predicted values"
 
     models = preds.columns.to_list()[:-1]
-    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.55)
-    markers = [".", "^", "D", "x", "+", "p", "s"]
+    cmap = sns.color_palette(palette=palette, n_colors=len(models), desat=.85)
+    markers = ["s", "o", "D", "p", "X", "^", "*"]
     lim = [1.05*min(preds.min()), 1.05*max(preds.max())]
 
     # Plot true values vs. predictions for all models
@@ -922,8 +930,8 @@ def plot_true_vs_pred(preds, xlabel="Truth", ylabel="Prediction",
     plt.plot(lim, lim, color="grey", linestyle="--")
     plt.xlim(lim)
     plt.ylim(lim)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
+    plt.xlabel(xlabel, fontsize=13)
+    plt.ylabel(ylabel, fontsize=13)
     plt.legend(loc="upper right")
     plt.suptitle(title, fontsize=16)
 
@@ -968,7 +976,10 @@ def plot_neg_validation(results, palette="hls", **kwargs):
         ax[i].set_xticks(x)
         ax[i].set_xticklabels(models, rotation=270)
         ax[i].set_ylim([0, 1.05])
-        ax[i].set_title(sub_titles[col])
+        ax[i].set_title(sub_titles[col], fontsize=14)
+        #ax[i].set_xlabel("", fontsize=13)
+        if i==0:
+            ax[i].set_ylabel("Proportion", fontsize=13)
 
     plt.suptitle(title, fontsize=16)
 
@@ -999,8 +1010,8 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
 
     # ax.set_xticks(x)
     ax.set_ylim([0, 1.05])
-    plt.xlabel(r"Standard Deviation ($\sigma$)")
-    plt.ylabel("Proportion")
+    plt.xlabel(r"Standard Deviation ($\sigma$)", fontsize=13)
+    plt.ylabel("Proportion", fontsize=13)
     plt.legend(loc="upper right")
     plt.suptitle(title, fontsize=16)
 
@@ -1010,8 +1021,7 @@ def plot_pos_validation(results, palette="hls", title=None, **kwargs):
     return fig
 
 
-def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
-                         **kwargs):
+def plot_perm_importance(results, cutoff=0.05, cmap=None, **kwargs):
     """Plot permutation importance p-values
 
     P-values with a value of zero are assigned a value of 10^30 during
@@ -1024,7 +1034,7 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
     if cmap is None:
         cmap = list(sns.color_palette(palette="hls", n_colors=len(models),
                                       desat=.85))
-    fontdict = {"fontsize":16}
+    fontdict = {"fontsize":22}
 
     # Log-transform p-values. Assign arbitrarily small value to zeroed p-values
     a = results.values.flatten()
@@ -1043,11 +1053,55 @@ def plot_perm_importance(results, cutoff=0.05, cmap=None, title=None,
         axes[i//3, i%3].set_xticklabels(features, rotation=90)
         axes[i//3, i%3].axhline(-np.log10(cutoff), ls="--", color="grey")
         axes[i//3, i%3].axhline(0, color="black")
+        if i%3==0:
+            axes[i//3, i%3].set_ylabel(r'$-log_{10}(P)$', fontsize=20)
 
     axes[2, 1].remove()
     axes[2, 2].remove()
 
-    plt.suptitle(title, fontsize=16)
+    # plt.suptitle("Permutation importances", fontsize=18)
+    plt.tight_layout()
+    plt.show()
+
+    return fig
+
+
+def plot_lr_rf_perm_imp(results, cutoff=0.05, cmap=None, **kwargs):
+    """Plot linear regression and random forest permutation importances
+
+    Returns 1x2 subplot
+    """
+    # Set plot arguments
+    models = results.columns.to_list()
+    features = results.index.to_list()
+    n_features = len(features)
+    if cmap is None:
+        cmap = list(sns.color_palette(palette="hls", n_colors=len(models),
+                                      desat=.85))
+    fontdict = {"fontsize":26}
+    inds=[0, 5]   # Index selected models
+
+    # Log-transform p-values. Assign arbitrarily small value to zeroed p-values
+    a = results.values.flatten()
+    min_p = min(min(a[a > 0]), 2e-30)/2
+    data = -np.log10(results.replace(0, min_p))
+
+    # Grid of barplots
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10), sharey=True)
+
+    for i, j in enumerate(inds):
+        axes[i].scatter(np.arange(n_features), data[models[j]].values,
+                                  color=cmap[j], **kwargs)
+        axes[i].set_title(models[j], fontdict=fontdict)
+        axes[i].set_xticks(np.arange(n_features))
+        axes[i].set_xticklabels(features, rotation=90)
+        axes[i].axhline(-np.log10(cutoff), ls="--", color="grey")
+        axes[i].axhline(0, color="black")
+        if i==0:
+            axes[i].set_ylabel(r'$-log_{10}(P)$', fontsize=22)
+
+    plt.suptitle("Linear regression vs random forest permutation importances",
+                 fontsize=32)
     plt.tight_layout()
     plt.show()
 
@@ -1246,22 +1300,26 @@ def plot_corr_heatmap(corr, **kwargs):
 def plot_log_p_value(data, **kwargs):
     """Plot distribution of p-values
     """
-    sub_titles = {"p_value":"Raw p-values",
-                  "log_p":"Log-transformed p-values"}
-
+    labels = {"p_value":"Raw p-values",
+              "log_p":"Log-transformed p-values"}
+    sub_titles = ["Before", "After"]
+    
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5),
                              gridspec_kw={"wspace":0.4})
-
-    for i, col in enumerate(sub_titles.keys()):
+    
+    for i, col in enumerate(labels.keys()):
         sns.kdeplot(data=data[col], ax=axes[i], legend=False, **kwargs)
-        axes[i].set_title(sub_titles[col])
+        axes[i].set_title(sub_titles[i], fontsize=15)
+        axes[i].set_ylabel("Density", fontsize=13)
+        axes[i].set_xlabel(labels[col], fontsize=13)
         if col == "p_value":
             axes[i].set_xlim(0, 1)
         else:
             lim = np.amax(data[col])
             axes[i].set_xlim(0, lim*1.03)
-
+            
+    
     plt.tight_layout()
     # plt.show()
-
+    
     return fig

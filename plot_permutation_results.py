@@ -5,7 +5,8 @@ import pandas as pd
 from cts.utils import ROOT
 from cts.utils import (load_models,
                        get_array_results,
-                       plot_perm_importance)
+                       plot_perm_importance,
+                       plot_lr_rf_perm_imp)
 
 
 # Get model names
@@ -32,3 +33,7 @@ for name in names:
 fig = plot_perm_importance(results, edgecolor="white", alpha=0.75)
 figpath = os.path.join(path, "permutation_importances.png")
 fig.savefig(figpath)
+
+fig2 = plot_lr_rf_perm_imp(results, edgecolor="white", alpha=0.75)
+figpath2 = os.path.join(path, "lr_rf_permutation_importance.png")
+fig2.savefig(figpath2)
