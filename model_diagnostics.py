@@ -44,7 +44,8 @@ pred_df["Truths"] = y_test.values
 
 # Plot true values vs. predictions for all models
 fig = plot_true_vs_pred(pred_df,
-                        scatter_kws=dict(alpha=0.5, edgecolor="w"),
+                        scatter_kws=dict(alpha=0.85, edgecolor="w",
+                                         linewidth=.2),
                         line_kws=dict(linewidth=0.85))
 figpath = os.path.join(path, "true_vs_pred.png")
 fig.savefig(figpath)
